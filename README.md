@@ -1,160 +1,280 @@
 # ServiceConnect
 
-A local **service discovery and booking marketplace** — customers find and book nearby service providers (plumbers, mechanics, electricians, carpenters, painters, cleaners, appliance repair, interior designers, …).
+A local **service marketplace**: customers find nearby service providers, book
+them, track the job, and review the result. Providers manage a public profile,
+a service catalogue and an incoming job queue. Staff verify every provider
+before it becomes publicly visible.
 
-> **Status: scaffolding stage.** This repository currently contains the project skeleton only (folder structure, docs, configuration, health endpoint, landing page). Features are being added incrementally — see [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md). Authentication is **not** implemented yet.
+Built as a college project with npm workspaces, a strict TypeScript API and a
+React SPA.
 
-## Roles
+---
 
-| Role | Capabilities |
-|------|--------------|
-| **CUSTOMER** | Search/filter providers, create and manage bookings |
-| **PROVIDER** | Manage profile, services, availability, booking requests, clients |
-| **ADMIN** | Manually verify providers before they become publicly visible |
+## Status
 
-All authorization is enforced **on the backend** (JWT role claims + Express middleware). Frontend role gates are UX only and are never the security boundary — see [`docs/SECURITY.md`](docs/SECURITY.md).
+The application is **feature-complete** across every planned phase:
+
+| Area | What works |
+|------|------------|
+| **Auth** | Register / sign in (customer or provider), scrypt password hashing, JWT access tokens, server-side session revocation on logout |
+| **Customers** | Browse and filter verified providers, request a booking, track it through a lifecycle, cancel while eligible, leave a 1-5 star review |
+| **Providers** | Public profile, service catalogue, job queue, and the full accept → start → complete workflow |
+| **Admin** | Verification queue, provider detail, approve / reject / suspend, all written to an audit log |
+| **Notifications** | In-app notifications for every booking event, committed in the same transaction as the state change |
+
+**Test baseline:** server **248 passing**, client **291 passing**, typecheck and
+production build clean.
+
+Not built (deliberately out of scope): payments, chat, email/SMS/push delivery,
+provider replies to reviews, and a password-reset flow. Rate limiting is the
+largest remaining production gap — see [`docs/SECURITY.md`](docs/SECURITY.md).
+
+---
 
 ## Tech stack
 
-- **Client:** React + TypeScript + Vite + Tailwind CSS + React Router + Lucide icons
-- **Server:** Node.js + Express + TypeScript (strict mode), centralized error handling, zod-validated environment config, modular API routing
-- **Database:** PostgreSQL (local dev via Docker Compose)
+- **Client** — React 19, TypeScript, Vite, Tailwind CSS v4, React Router, Lucide
+- **Server** — Node.js, Express 4, TypeScript (strict), zod, `pg`, Helmet
+- **Database** — PostgreSQL 16 (local dev via Docker Compose)
+- **Tests** — `node:test` on both sides; no browser or DOM emulator required
+
+---
+
+## Quick start
+
+```bash
+git clone <your-repo-url> serviceconnect
+cd serviceconnect
+
+npm install                                     # installs both workspaces
+
+# Windows
+copy server\.env.example server\.env
+copy client\.env.example client\.env
+# macOS / Linux
+cp server/.env.example server/.env && cp client/.env.example client/.env
+
+docker compose up -d                           # start PostgreSQL 16
+npm run migrate                                 # create the schema (11 migrations)
+npm run seed                                    # load deterministic dev fixtures
+
+npm run dev:server                              # API  → http://localhost:4000
+npm run dev:client                              # app  → http://localhost:5173
+```
+
+Then open **http://localhost:5173**.
+
+`server/.env` needs a strong `JWT_SECRET`. Generate one:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### Seed accounts
+
+Every seeded account uses the password `Password123!` (scrypt-hashed, never
+reused). Full list in [`database/README.md`](database/README.md). The roles to
+try first:
+
+| Role | What to look at |
+|------|-----------------|
+| **CUSTOMER** | Book a provider, then watch the status change and the notifications arrive |
+| **PROVIDER** | `/provider/dashboard` — accept, start and complete a booking |
+| **ADMIN** | `/admin/dashboard` — approve a provider and watch them appear in public search |
+
+The Vite dev server proxies `/api` to `http://localhost:4000`, so no CORS setup is
+needed in development.
+
+---
+
+## Scripts
+
+Run from the repository root:
+
+| Command | Effect |
+|---------|--------|
+| `npm run dev:server` | API with hot reload (`tsx watch`) |
+| `npm run dev:client` | Vite dev server |
+| `npm run migrate` | Apply pending migrations (checksum-guarded, safe to re-run) |
+| `npm run seed` | Load dev fixtures (no-op if data already present) |
+| `npm test` | Both test suites |
+| `npm run test:server` / `npm run test:client` | One suite only |
+| `npm run typecheck` | `tsc --noEmit` across both workspaces |
+| `npm run build` | Typecheck + production client bundle |
+| `npm start:server` | Run the compiled API |
+
+---
 
 ## Project structure
 
 ```
 serviceconnect/
-├── client/                   # React SPA
+├── client/                          # React SPA
 │   └── src/
-│       ├── components/       # Navbar (responsive nav)
-│       ├── pages/            # Home (landing), Providers, Login, 404
-│       ├── lib/api.ts        # typed API client
-│       └── types/            # shared TS types
-├── server/                   # Express API
+│       ├── components/
+│       │   ├── admin/               # verification queue, decision dialog
+│       │   ├── booking/             # booking card, status badge, cancel dialog
+│       │   ├── dashboard/           # customer dashboard cards
+│       │   ├── notifications/       # navbar bell, dropdown, row
+│       │   ├── provider/            # provider queue, review/decision UI
+│       │   ├── providers/           # public directory, profile, reviews
+│       │   ├── reviews/             # review form, booking review section
+│       │   └── ui/                  # Alert, LoadingState, ErrorState, Field
+│       ├── lib/                     # api client, auth session, pure helpers
+│       ├── pages/                   # one file per route
+│       ├── tests/                   # 291 tests
+│       └── types/                   # shared TS types (mirror the API)
+├── server/                          # Express API
 │   └── src/
-│       ├── index.ts          # server entry, graceful shutdown
-│       ├── app.ts            # app assembly (helmet, cors, routers)
-│       ├── config/           # env validation (zod), pg pool
-│       ├── middleware/       # errorHandler, requireAuth, requireRole
-│       ├── modules/          # feature modules: health, auth, providers, bookings, admin
-│       └── shared/           # HttpError, role types, express typings
-├── database/                 # schema/migrations/seeds (planned — see database/README.md)
-├── docs/                     # BUILD_LOG, AI_DECISION_LOG, SECURITY, DEPLOYMENT
-├── docker-compose.yml        # local PostgreSQL 16
-├── .env.example              # env var reference (no secrets)
+│       ├── app.ts                   # app assembly (helmet, cors, routers)
+│       ├── db/                      # migration + seed runners
+│       ├── middleware/              # requireAuth, requireRole, errorHandler
+│       ├── modules/                 # auth, providers, bookings, reviews,
+│       │                            # notifications, admin, health
+│       ├── shared/                  # HttpError, enums, transition table
+│       └── tests/                   # 248 tests
+├── database/
+│   ├── migrations/                  # 11 append-only, checksum-tracked files
+│   └── README.md                    # schema reference + seed accounts
+├── docs/                           # BUILD_LOG, AI_DECISION_LOG, SECURITY, DEPLOYMENT
+└── docker-compose.yml              # local PostgreSQL 16
 ```
 
-## Prerequisites
+---
 
-- Node.js ≥ 20 (tested on Node 24)
-- npm ≥ 10
-- Docker (for the local PostgreSQL container)
+## How it fits together
 
-## Setup
+**The backend is the security boundary.** Every protected route is guarded by
+`requireAuth` plus `requireRole`, and every identity — customer, provider, acting
+admin — comes from the verified session, never from a request body. Request
+schemas are `strict`, so an attempt to smuggle in a `customerId` is rejected
+rather than ignored. Frontend role checks exist purely to avoid showing somebody
+a screen that could only fail.
+
+**Bookings are a state machine.** `PENDING → ACCEPTED → IN_PROGRESS → COMPLETED`,
+with `REJECTED` and `CANCELLED` as terminal branches. Transitions live in one
+table on the server and are enforced in SQL as a guarded
+`UPDATE … WHERE status = $current`, so a double-click or a race cannot skip a
+state. The provider UI mirrors that same table, which is why it can never offer a
+button the API would refuse.
+
+**Reviews only follow completed work.** The `reviews` table carries composite
+foreign keys onto `bookings`, so the database itself makes it impossible to store
+a review whose customer or provider disagrees with the booking. One review per
+booking, enforced by a `UNIQUE` constraint.
+
+**Notifications commit with the booking.** Each booking transition and its
+notification run inside one database transaction, so a notification can never
+describe a change that rolled back, and a change can never commit without one.
+There is no endpoint that creates a notification — the recipient, type and message
+are all decided by server-side business logic.
+
+Full reasoning for each of these is in
+[`docs/AI_DECISION_LOG.md`](docs/AI_DECISION_LOG.md) (30 numbered ADRs).
+
+---
+
+## API
+
+All routes are prefixed `/api`. Unless marked *public*, they require a bearer
+token.
+
+### Public
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Liveness probe |
+| `GET` | `/providers` | Search verified providers — filters, sort, pagination |
+| `GET` | `/providers/categories` | Category list with provider counts |
+| `GET` | `/providers/:id` | Public profile — APPROVED only. Gallery, services, price range, rating, anonymous reviews. Unapproved or unknown id → 404 |
+
+### Customer
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/bookings` | Request a booking → `201`. `providerId`, `serviceId`, `date`, `time`, `problemDescription`, `address`, `notes?` |
+| `GET` | `/bookings/my` | My bookings (paged) |
+| `GET` | `/bookings/:id` | One booking — another customer's is 404 |
+| `PATCH` | `/bookings/:id/cancel` | Cancel, `{ reason }`, allowed from `PENDING`/`ACCEPTED` |
+| `POST` | `/reviews` | Review a **completed** booking → `201`. `bookingId`, `rating` 1–5, `comment?` |
+| `GET` | `/reviews/my` | My own reviews |
+
+### Provider
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/providers/me` | My own profile |
+| `PATCH` | `/providers/me` | Update my profile |
+| `GET` | `/providers/me/services` | My service catalogue |
+| `POST` | `/providers/me/services` | Create a service |
+| `PATCH` | `/providers/me/services/:id` | Update a service |
+| `DELETE` | `/providers/me/services/:id` | Remove a service |
+| `GET` | `/provider/bookings` | My job queue |
+| `PATCH` | `/provider/bookings/:id/status` | `{ status, reason? }` — reason required to reject |
+
+### Notifications (any role, always your own rows)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/notifications` | Mine — `?page`, `?pageSize`, `?unreadOnly` |
+| `GET` | `/notifications/unread-count` | `{ count }` |
+| `PATCH` | `/notifications/:id/read` | Mark one read — another user's is 404 |
+| `PATCH` | `/notifications/read-all` | Mark all of mine read |
+
+### Admin
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/admin/providers/pending` | Verification queue |
+| `GET` | `/admin/providers/:id` | Full detail + decision history |
+| `PATCH` | `/admin/providers/:id/approve` | → `APPROVED`, optional `note` |
+| `PATCH` | `/admin/providers/:id/reject` | → `REJECTED`, `reason` required |
+| `PATCH` | `/admin/providers/:id/suspend` | → `SUSPENDED`, optional `reason` |
+
+Every decision is written to `admin_action_log` with the acting admin, the
+previous and new status, and the reason.
+
+---
+
+## Testing
 
 ```bash
-# 1. Install all dependencies (npm workspaces: server + client)
-npm install
-
-# 2. Create your local environment files from the templates (never commit these)
-copy server\.env.example server\.env        # Windows
-copy client\.env.example client\.env
-# macOS/Linux: cp server/.env.example server/.env && cp client/.env.example client/.env
-
-# 3. Start PostgreSQL (optional during scaffolding — the API boots without it)
-docker compose up -d
-
-# 4. Create the schema and load development fixtures
-npm run migrate
-npm run seed
+npm test              # 248 server + 291 client
+npm run test:server
+npm run test:client
 ```
 
-`server/.env` must contain a strong `JWT_SECRET` (generate one: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+Server tests run against a real PostgreSQL database and **require
+`npm run migrate` to have been applied**. The suites share one database and run
+serially (`--test-concurrency=1`) because several deliberately move the same
+fixture through a lifecycle.
 
-## Running
+Coverage includes cross-user access attempts, role boundaries on every route,
+illegal state transitions, concurrent duplicate submissions, and assertions that
+error responses and public payloads never contain SQL, stack traces or customer
+contact details.
 
-```bash
-# Terminal 1 — API server  →  http://localhost:4000/api/health
-npm run dev:server
-
-# Terminal 2 — client      →  http://localhost:5173
-npm run dev:client
-```
-
-Other scripts (run from the repo root):
-
-| Command | Effect |
-|---------|--------|
-| `npm test` | Auth & RBAC integration tests (server; needs DB + migrations) |
-| `npm run migrate` | Apply `database/migrations/*.sql` (checksum-tracked, idempotent) |
-| `npm run seed` | Load development fixtures (8 categories, 11 providers, …) |
-| `npm run build` | Type-check + build server and client |
-| `npm run typecheck` | `tsc --noEmit` for both packages |
-
-### API endpoints
-
-| Endpoint | Auth | Description |
-|----------|------|-------------|
-| `POST /api/auth/register` | — | Create CUSTOMER or PROVIDER account (ADMIN impossible) → `201 { user, token }` |
-| `POST /api/auth/login` | — | Uniform `401` on any failure → `200 { user, token, expiresIn }` |
-| `POST /api/auth/logout` | Bearer | Revokes the session server-side → `200` |
-| `GET /api/auth/me` | Bearer | Current user from DB → `200 { user }` |
-| `GET /api/health` | — | `{"status":"ok","service":"ServiceConnect API"}` |
-| `GET /api/admin/ping` | ADMIN | Example of a role-protected route (401/403 otherwise) |
-| `GET /api/providers/me` | PROVIDER | Own profile + verification status |
-| `PATCH /api/providers/me` | PROVIDER | Update business fields only (verification fields → 400) |
-| `GET /api/admin/providers/pending` | ADMIN | Queue of PENDING profiles |
-| `GET /api/admin/providers/:id` | ADMIN | Full detail + decision history |
-| `PATCH /api/admin/providers/:id/approve` | ADMIN | → APPROVED (logged) |
-| `PATCH /api/admin/providers/:id/reject` | ADMIN | → REJECTED, body `{ "reason": "…" }` required (logged) |
-| `PATCH /api/admin/providers/:id/suspend` | ADMIN | → SUSPENDED, optional reason (logged) |
-| `GET /api/providers/me/services` | PROVIDER | Own catalogue only (other providers' rows never returned) |
-| `POST /api/providers/me/services` | PROVIDER | Create a service → `201 { service }` |
-| `PATCH /api/providers/me/services/:id` | PROVIDER | Edit own service (foreign id → 404) |
-| `DELETE /api/providers/me/services/:id` | PROVIDER | Deactivate own service (soft delete, reversible) |
-| `GET /api/providers` | — | **Public search** — only APPROVED providers. Params: `keyword`, `category`, `location`, `minPrice`, `maxPrice`, `rating`, `availability`, `sort` (`rating`\|`price`\|`newest`), `order`, `page`, `pageSize` (≤50) |
-| `GET /api/providers/categories` | — | Category slugs + public provider counts (for filter UI) |
-| `GET /api/providers/:id` | — | **Public profile** — APPROVED only. Cover/profile image, gallery, services, price range, experience, reviews (anonymous). Unapproved or unknown id → 404 |
-| `POST /api/bookings` | CUSTOMER | Create a booking request → `201 { booking }`. Body: `providerId`, `serviceId`, `date`, `time`, `problemDescription`, `address`, `notes?` |
-| `GET /api/bookings/my` | CUSTOMER | My bookings (paged) |
-| `GET /api/bookings/:id` | CUSTOMER | One of my bookings (another customer's → 404) |
-| `PATCH /api/bookings/:id/cancel` | CUSTOMER | Cancel, body `{ "reason": "…" }` — allowed from `PENDING`/`ACCEPTED` only |
-| `POST /api/reviews` | CUSTOMER | Review a **completed** booking → `201 { review }`. Body: `bookingId`, `rating` (int 1–5), `comment?` (≤2000) — reviewer and provider are derived server-side |
-| `GET /api/reviews/my` | CUSTOMER | My own reviews. Public reviews of a provider come from `GET /api/providers/:id` (anonymous) |
-| `GET /api/notifications` | any | My own notifications — `?page`, `?pageSize`, `?unreadOnly` |
-| `GET /api/notifications/unread-count` | any | `{ count }` |
-| `PATCH /api/notifications/:id/read` | owner | Mark one read (scoped to me — another user's is 404) |
-| `PATCH /api/notifications/read-all` | any | Mark all of **my** notifications read |
-| `GET /api/provider/bookings` | PROVIDER | My job queue; optional `?status=` |
-| `PATCH /api/provider/bookings/:id/status` | PROVIDER | `{ "status": "ACCEPTED"\|"REJECTED"\|"IN_PROGRESS"\|"COMPLETED", "reason"? }` — reason required to reject |
-
-Seed accounts share the dev password `Password123!` (scrypt-hashed — never
-reused anywhere else). Details: [`database/README.md`](database/README.md).
-
-The Vite dev server proxies `/api` to `http://localhost:4000`, so no CORS configuration is needed in development.
-
-## Health check
-
-```bash
-curl http://localhost:4000/api/health
-# {"status":"ok","service":"ServiceConnect API"}
-```
-
-## Roadmap
-
-- [x] Step 1 — Project scaffolding, docs, health endpoint, landing page, responsive nav
-- [x] Step 2 — Database schema + migrations (8 entities, constraints, seeds — see `database/`)
-- [x] Step 3 — Auth: registration, login, password hashing, JWT issuance ✅ (11 tests)
-- [x] Step 4 — Customer features: search/filter providers ✅; booking frontend ✅; customer dashboard ✅; **reviews & ratings ✅** (review a completed booking, anonymous public reviews) — 245 client tests
-- [x] Step 5 — Provider features — **profile onboarding, `GET/PATCH /providers/me`, verification workflow done**; **provider dashboard done** (`/provider/dashboard` — queue, accept/reject/start/complete); services/availability editor UI remains
-- [x] Step 6 — Admin features: provider verification workflow ✅ (pending queue, approve/reject/suspend, audit log — 8 server tests) + **admin frontend done** (`/admin/dashboard`, `/admin/providers/:id` — 205 client tests)
-- [x] Step 7 — Hardening: rate limiting, tests, deployment; **in-app notifications done** (booking-event notifications, bell + `/notifications`, transactional with the state change); **Phase 17 audit done** (full route×role matrix, accessibility + live-region fixes) — 248 server / 291 client tests
+---
 
 ## Documentation
 
-- [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md) — what was built, when, and how it was verified
-- [`docs/AI_DECISION_LOG.md`](docs/AI_DECISION_LOG.md) — architecture decisions and trade-offs
-- [`docs/SECURITY.md`](docs/SECURITY.md) — threat model, RBAC matrix, secrets handling
-- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — environment variables, hosting, release checklist
-#   s e r v i c e - p r o v i d e r  
- 
+| Document | Contents |
+|----------|----------|
+| [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md) | Every phase: what was built, how it was verified, what went wrong |
+| [`docs/AI_DECISION_LOG.md`](docs/AI_DECISION_LOG.md) | 30 numbered ADRs — why each significant choice was made, and what was rejected |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model, role matrix, secrets handling, the Phase 17 audit, outstanding gaps |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environment variables, release checklist, rollback |
+| [`database/README.md`](database/README.md) | Table-by-table schema reference and seed accounts |
+
+---
+
+## Conventions
+
+- **English, British spelling** in prose and comments (`colour`, `behaviour`);
+  this is stylistic, not a rule to enforce in a linter.
+- **Comments explain *why*.** A comment restating the code is noise; the
+  interesting ones explain a constraint, a past bug, or a rejected alternative.
+- **Server-side validation is the source of truth.** Client validation exists to
+  save a round trip and never to enforce a rule.
+- **Migrations are append-only.** An applied file is checksum-locked; the runner
+  refuses to start if one has been edited. Add a new migration instead.
