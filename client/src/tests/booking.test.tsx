@@ -279,7 +279,7 @@ describe('ServicePicker', () => {
       <ServicePicker services={[SERVICE]} value="" onChange={() => {}} name="serviceId" />,
     );
     assert.match(html, /Plumbing repair/);
-    assert.match(html, /\$90 – \$150/);
+    assert.match(html, /₹90 – ₹150/);
     assert.match(html, /1 hr 30 min/);
   });
 
@@ -475,7 +475,7 @@ describe('BookingForm', () => {
 
   it('shows the starting price as information, with a server-authoritative note', () => {
     const html = render(PROVIDER);
-    assert.match(html, /\$90/);
+    assert.match(html, /₹90/);
     assert.match(html, /final price and duration are confirmed by the provider/i);
   });
 

@@ -1326,3 +1326,156 @@ backstop against a notification being used to store request payloads.
   idle tab forever is a cost with no user-visible benefit.
 - **Letting the API return a `url` field** — a stored-XSS/open-redirect vector for
   no benefit; the client can derive the route from the booking id itself.
+
+---
+
+## ADR-030 — Indian localisation and role-aligned onboarding: one formatter, one role table, and no new architecture
+
+**Context.** Phase 18 re-targeted ServiceConnect at the Indian market and asked for the
+three role journeys to be legible end to end. The application was otherwise complete:
+auth, the booking state machine, provider verification, reviews and notifications were
+all built and tested. The question this ADR answers is what to change — and, more
+importantly, what to leave alone.
+
+**Decision. Reuse the existing architecture almost entirely.** Six targeted changes:
+
+1. One currency formatter at the display boundary.
+2. Indian demo fixtures in the seed file only.
+3. Provider registration fields extended (phone, service areas, years of experience) —
+   still landing PENDING by column default.
+4. A role→route table and a role→links table in the client.
+5. A "My business" page exposing endpoints that already existed.
+6. One server fix so those endpoints were actually reachable from a UI.
+
+---
+
+### 1. USD -> INR: format at the boundary, store plain numbers
+
+`lib/format.ts` had exactly one price formatter, `` `$${amount.toFixed(0)}` ``, and all
+eight price-rendering surfaces already delegated to it. So the currency change was a
+single function, not a sweep.
+
+```ts
+const INR = new Intl.NumberFormat('en-IN', {
+  style: 'currency', currency: 'INR', maximumFractionDigits: 0,
+});
+```
+
+**Why `en-IN` and not `en-US` with `currency: 'INR'`.** They are not the same string.
+`en-IN` applies Indian digit grouping: 123456 becomes `₹1,23,456`, where `en-US` gives
+`₹123,456`. For an Indian audience the lakh grouping is the expected form, and a price
+above ₹1,00,000 is entirely ordinary here. This was verified before writing any code
+rather than assumed.
+
+**Why the symbol is never stored.** A `₹` character in a `NUMERIC(10,2)` column is
+impossible anyway, but the deeper point is that a symbol in storage poisons sorting,
+filtering, aggregation and any future currency change. The symbol is a *rendering*
+concern, so it lives in exactly one function and nowhere else. Registration and service
+prices are accepted as plain numbers, and the tests assert the stored value matches
+`/^[0-9.]+$/`.
+
+**Rejected:**
+- **Storing a formatted string** — breaks the numeric columns and every price filter.
+- **A hand-rolled `₹${n.toLocaleString()}` in each component** — the exact bug this
+  phase fixes. `currency.test.ts` now asserts no component hand-rolls a price string,
+  so it cannot come back.
+- **A global locale switch** — no requirement for a second currency, and one locale
+  switch adds a knob nobody would turn.
+
+**Also raised the `hourlyRate` ceiling** from `10_000` to `10_000_000`. The old cap
+implied a maximum of ₹10,000, which a realistic Indian business rate exceeds; leaving it
+would have made the new registration field reject valid input. The database constraint is
+only `> 0` with no upper bound, so this aligns the API with reality rather than inventing
+a new rule.
+
+### 2. Demo data: Goa, and only the demo data
+
+The seed fixtures described San Antonio, Houston and Dallas with USD prices. They are
+replaced with Goa cities (Panaji, Mapusa, Margao, Ponda, Porvorim, Vasco da Gama),
+Goan/Indian business names, `+91` phone numbers and rupee-scale prices.
+
+**Why Goa specifically** — a coherent, recognisable regional market makes the fixtures
+read as real rather than random, and gives `serviceAreas` meaningful neighbouring towns
+(Panjim beside Panaji, Margao beside Madgaon).
+
+**What deliberately did not change:** the database schema, the currency columns, the
+`service_areas` type, and every migration. Indian-ness is data, not architecture. The
+`NUMERIC(10,2)` columns, `TEXT[]` areas and the ₹-agnostic query layer are exactly what
+makes this a seed-only change.
+
+Prices were re-scaled rather than merely re-symboled: `₹450` for a plumbing call-out
+reads as implausible in this market, so fixtures sit between ₹1,500 and ₹85,000.
+Internally the seed file's `rate` field is an advertised starting price, not an hourly
+rate; the UI labels it "from", so nothing on screen claims a misleading unit.
+
+### 3. Provider registration: extend the fields, keep the gate
+
+`registerSchema` already accepted `role: 'PROVIDER'` and required `provider` details —
+the backend was ready and the **frontend simply never offered it** (`LoginPage`
+hard-coded `role: 'CUSTOMER'` with a comment saying provider onboarding "is a later
+phase"). That comment was the actual defect. So this phase added the UI rather than
+building a registration system.
+
+Newly accepted at sign-up: `phone`, `serviceAreas`, `yearsExperience`. Business name and
+city stay required; the rest are optional and editable later via `PATCH /providers/me`,
+which already accepted all of them. Requiring everything would make sign-up a wall for a
+provider who is not ready to write a description.
+
+**The security-critical part is unchanged and deliberate.** The INSERT omits
+`verification_status`, so the column `DEFAULT 'PENDING'` applies. There is no code path —
+and now provably no request body — that can make a new provider APPROVED. `auth.service.ts`
+says so at the INSERT, and a test posts a hand-crafted `verificationStatus: 'APPROVED'`
+and asserts the outcome is PENDING and non-public.
+
+**Rejected:** auto-approving providers who "look legitimate", a separate
+`/providers/register` endpoint, and an admin pre-approval or invite step. All three
+either weaken the verification gate that makes the marketplace trustworthy, or duplicate
+an endpoint that already works.
+
+### 4. Role routing: a table driven by the server's answer
+
+`homeForRole(role)` maps CUSTOMER/PROVIDER/ADMIN to `/dashboard`, `/provider/dashboard`,
+`/admin/dashboard`. The input is always the role the **server returned** in the auth
+response, never a form selection — the `role` a user picks at sign-up decides what the
+server is asked to create, not where they land. Previously `LoginPage` always navigated
+to `/bookings`, which sent every provider and admin to a customer screen.
+
+Navigation mirrors this with an exported `ROLE_LINKS` table so the contract is
+assertable in tests rather than buried in JSX.
+
+**This is UX routing, not authorization.** Every route still re-reads the role from the
+database through `requireAuth`/`requireRole`; hiding a link stops nobody who edits the
+browser. The tests assert the tables are correct and that admin links never appear in
+another role's list — documentation of intent, not a security control.
+
+**Rejected:** client-side route guards described as protection, and trusting a role
+supplied by the user in a query parameter.
+
+### 5. Two pre-existing link bugs, fixed
+
+`Navbar` and `ProviderDashboardPage` both pointed "my profile" at `/providers` — the
+**public search directory**. A provider clicking "my profile" was shown a list of other
+people's businesses. Both now point at `/provider/business`. A source-level regression
+test asserts no self-referential provider link targets `/providers`, since the failure
+mode is invisible until someone uses the app.
+
+### 6. The one genuine server bug
+
+`POST /providers/me/services` requires a `categoryId` (a UUID), but
+`GET /providers/categories` returned only `{ slug, name, providerCount }`. **Provider
+service creation was therefore unreachable from any UI** — the endpoints existed, were
+tested, and could not be driven end to end. Adding `id` to that response is the fix.
+
+The alternative — accepting a category *slug* on write — was rejected: it would make two
+different identifiers address the same row depending on which endpoint you used, and the
+slug is the mutable, user-facing one. A category UUID is shared reference data carrying
+no account or provider information, so exposing it is not a disclosure change.
+
+---
+
+### What was explicitly not done
+
+No new database tables, columns or migrations. No new endpoints beyond exposing category
+`id`. No rewrite of the auth, booking, verification or admin architecture. No payment,
+chat or notification-channel work. No second currency, and no i18n framework for a
+single-locale app.

@@ -33,12 +33,12 @@ const PROVIDER: AdminProviderDetail = {
   userId: '22222222-2222-4222-8222-222222222222',
   businessName: 'Acme Plumbing',
   description: 'Friendly plumbing repairs since 2015.',
-  phone: '+1 555 0101',
-  city: 'Springfield',
-  address: '12 High Street',
-  serviceAreas: ['Springfield', 'Shelbyville'],
+  phone: '+91 98220 12345',
+  city: 'Panaji',
+  address: '12 Nehru Marg',
+  serviceAreas: ['Panaji', 'Dona Paula'],
   yearsExperience: 9,
-  hourlyRate: '80.00',
+  hourlyRate: '7500.00',
   profileImageUrl: null,
   coverImageUrl: null,
   verificationStatus: 'PENDING',
@@ -48,6 +48,29 @@ const PROVIDER: AdminProviderDetail = {
   verifiedAt: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  // The catalogue the reviewer needs in order to judge the application.
+  services: [
+    {
+      id: 's1',
+      name: 'Emergency pipe repair',
+      description: 'Call-out and fix within the hour.',
+      categoryName: 'Plumbing',
+      priceFrom: '4500.00',
+      priceTo: null,
+      durationMinutes: 90,
+      isActive: true,
+    },
+    {
+      id: 's2',
+      name: 'Drain unclogging',
+      description: null,
+      categoryName: 'Plumbing',
+      priceFrom: '2500.00',
+      priceTo: '5000.00',
+      durationMinutes: 60,
+      isActive: false,
+    },
+  ],
   owner: { fullName: 'Alex Morgan', email: 'alex@example.com', isActive: true },
 };
 
@@ -151,6 +174,9 @@ describe('adminProviderView', () => {
       'phone',
       'profileImageUrl',
       'serviceAreas',
+      // The provider's catalogue, so the reviewer can judge the application
+      // (Phase 18). Only the fields the admin screen renders are carried.
+      'services',
       'verificationStatus',
       'verifiedAt',
       'yearsExperience',
@@ -163,12 +189,27 @@ describe('adminProviderView', () => {
   });
 
   it('NEVER carries owner.isActive — an auth concern, not a review one', () => {
-    assert.ok(!JSON.stringify(view).includes('isActive'));
+    // Scoped to the OWNER block, not the whole payload: a service row carries
+    // its own `isActive` (so an admin can see a deactivated one), and that is a
+    // different thing entirely. Checking the entire view would make adding a
+    // legitimate catalogue field fail for the wrong reason.
+    assert.ok(!('owner' in view), 'the whole owner block must not reach the UI');
+    // Check the KEY, not a serialized substring: a service row legitimately
+    // carries its own `isActive`, and searching the JSON for the string "false"
+    // would match that value and prove nothing about the owner.
+    assert.ok(
+      !Object.prototype.hasOwnProperty.call(view, 'isActive'),
+      'isActive must not be a top-level view field',
+    );
+    assert.ok(
+      view.services.every((service) => typeof service.isActive === 'boolean'),
+      'a service-level isActive is expected and safe',
+    );
   });
 
   it('copies serviceAreas rather than aliasing the response array', () => {
     view.serviceAreas.push('Injected');
-    assert.deepEqual(PROVIDER.serviceAreas, ['Springfield', 'Shelbyville']);
+    assert.deepEqual(PROVIDER.serviceAreas, ['Panaji', 'Dona Paula']);
   });
 
   it('carries the id only for use as a route parameter', () => {
@@ -309,9 +350,9 @@ describe('ProviderReviewCard', () => {
 
   it('renders the details a reviewer needs', () => {
     const html = render();
-    assert.match(html, /Springfield/);
-    assert.match(html, /Shelbyville/);
-    assert.match(html, /\+1 555 0101/);
+    assert.match(html, /Panaji/);
+    assert.match(html, /Dona Paula/);
+    assert.match(html, /\+91 98220 12345/);
     assert.match(html, /9 years/);
     assert.match(html, /Friendly plumbing repairs/);
   });

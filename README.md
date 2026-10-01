@@ -22,7 +22,7 @@ The application is **feature-complete** across every planned phase:
 | **Admin** | Verification queue, provider detail, approve / reject / suspend, all written to an audit log |
 | **Notifications** | In-app notifications for every booking event, committed in the same transaction as the state change |
 
-**Test baseline:** server **248 passing**, client **291 passing**, typecheck and
+**Test baseline:** server **253 passing**, client **305 passing**, typecheck and
 production build clean.
 
 Not built (deliberately out of scope): payments, chat, email/SMS/push delivery,
@@ -122,7 +122,7 @@ serviceconnect/
 │       │   └── ui/                  # Alert, LoadingState, ErrorState, Field
 │       ├── lib/                     # api client, auth session, pure helpers
 │       ├── pages/                   # one file per route
-│       ├── tests/                   # 291 tests
+│       ├── tests/                   # 305 tests
 │       └── types/                   # shared TS types (mirror the API)
 ├── server/                          # Express API
 │   └── src/
@@ -132,7 +132,7 @@ serviceconnect/
 │       ├── modules/                 # auth, providers, bookings, reviews,
 │       │                            # notifications, admin, health
 │       ├── shared/                  # HttpError, enums, transition table
-│       └── tests/                   # 248 tests
+│       └── tests/                   # 253 tests
 ├── database/
 │   ├── migrations/                  # 11 append-only, checksum-tracked files
 │   └── README.md                    # schema reference + seed accounts
@@ -239,7 +239,7 @@ previous and new status, and the reason.
 ## Testing
 
 ```bash
-npm test              # 248 server + 291 client
+npm test              # 253 server + 305 client
 npm run test:server
 npm run test:client
 ```

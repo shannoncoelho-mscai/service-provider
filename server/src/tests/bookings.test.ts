@@ -89,7 +89,7 @@ async function registerProvider(email: string, name: string, business: string) {
     password: 'StrongPass123!',
     fullName: name,
     role: 'PROVIDER',
-    provider: { businessName: business, city: 'Austin' },
+    provider: { businessName: business, city: 'Panaji' },
   });
   assert.equal(res.status, 201, `register ${email} failed`);
   return { token: res.data.token as string, id: res.data.user.id as string };
@@ -102,7 +102,7 @@ function bookingBody(overrides: Record<string, unknown> = {}): Record<string, un
     serviceId: serviceAId,
     ...slot(3),
     problemDescription: 'Kitchen tap is leaking constantly.',
-    address: '42 Test Street, Austin TX',
+    address: '12 Test Marg, Panaji, Goa',
     notes: 'Please ring the bell twice.',
     ...overrides,
   };
@@ -220,7 +220,7 @@ describe('booking workflow', { concurrency: 1 }, () => {
     assert.equal(b.service.id, serviceAId);
     assert.equal(b.provider.id, providerAId);
     assert.equal(b.problemDescription, 'Kitchen tap is leaking constantly.');
-    assert.equal(b.address, '42 Test Street, Austin TX');
+    assert.equal(b.address, '12 Test Marg, Panaji, Goa');
     assert.equal(b.notes, 'Please ring the bell twice.');
     assert.equal(b.durationMinutes, 60, 'duration is snapshotted from the service');
     assert.equal(b.priceQuote, '100.00', 'starting price is snapshotted from the service');
@@ -560,7 +560,7 @@ describe('booking workflow', { concurrency: 1 }, () => {
     const selfId = customerId.rows[0].id;
     await pool.query(
       `INSERT INTO provider_profiles (user_id, business_name, city, verification_status, verified_by, verified_at)
-       VALUES ($1, 'Self Co.', 'Austin', 'APPROVED', $2, now())
+       VALUES ($1, 'Self Co.', 'Panaji', 'APPROVED', $2, now())
        ON CONFLICT (user_id) DO NOTHING`,
       [selfId, (await pool.query<{ id: string }>(
         `SELECT id FROM users WHERE role = 'ADMIN' ORDER BY created_at LIMIT 1`,
@@ -732,7 +732,7 @@ describe('booking workflow', { concurrency: 1 }, () => {
     for (const key of Object.keys(owner.data.booking)) {
       assert.ok(allowed.has(key), `unexpected booking field "${key}"`);
     }
-    assert.equal(owner.data.booking.address, '42 Test Street, Austin TX');
+    assert.equal(owner.data.booking.address, '12 Test Marg, Panaji, Goa');
 
     // Customer B gets nothing at all.
     const other = await call('GET', `/api/bookings/${target}`, undefined, tokenCustomerB);
@@ -761,7 +761,7 @@ describe('booking workflow', { concurrency: 1 }, () => {
     );
     assert.equal(assigned.status, 200);
     assert.equal(assigned.data.booking.customerName, 'Casey Booker');
-    assert.equal(assigned.data.booking.address, '42 Test Street, Austin TX');
+    assert.equal(assigned.data.booking.address, '12 Test Marg, Panaji, Goa');
   });
 }); // end describe
 

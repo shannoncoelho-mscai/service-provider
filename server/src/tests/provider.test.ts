@@ -90,7 +90,7 @@ before(async () => {
     password: 'StrongPass123!',
     fullName: 'Bob Provider',
     role: 'PROVIDER',
-    provider: { businessName: BUSINESS_B, city: 'Dallas' },
+    provider: { businessName: BUSINESS_B, city: 'Mapusa' },
   });
   assert.equal(b.status, 201);
   tokenB = b.data.token;
@@ -136,7 +136,7 @@ test('provider registers → profile PENDING → NOT publicly visible', async ()
     password: 'StrongPass123!',
     fullName: 'Pat Provider',
     role: 'PROVIDER',
-    provider: { businessName: BUSINESS_A, city: 'Austin' },
+    provider: { businessName: BUSINESS_A, city: 'Panaji' },
   });
   assert.equal(res.status, 201);
   tokenA = res.data.token;
@@ -159,9 +159,9 @@ test('provider updates own profile; cannot modify verificationStatus or another 
     'PATCH',
     '/api/providers/me',
     {
-      businessName: 'Austin Plumbing Pros',
-      serviceAreas: ['Austin', 'Round Rock'],
-      phone: '+1-512-555-0133',
+      businessName: 'Goa Plumbing Pros',
+      serviceAreas: ['Panaji', 'Dona Paula'],
+      phone: '+91-98220-12001',
       profileImageUrl: 'https://cdn.example.com/profile.png',
       coverImageUrl: 'https://cdn.example.com/cover.png',
       yearsExperience: 9,
@@ -169,8 +169,8 @@ test('provider updates own profile; cannot modify verificationStatus or another 
     tokenA,
   );
   assert.equal(updated.status, 200);
-  assert.equal(updated.data.profile.businessName, 'Austin Plumbing Pros');
-  assert.deepEqual(updated.data.profile.serviceAreas, ['Austin', 'Round Rock']);
+  assert.equal(updated.data.profile.businessName, 'Goa Plumbing Pros');
+  assert.deepEqual(updated.data.profile.serviceAreas, ['Panaji', 'Dona Paula']);
   assert.equal(updated.data.profile.verificationStatus, 'PENDING');
 
   // Rule 2: verification fields are rejected outright (strict schema)
@@ -189,7 +189,7 @@ test('provider updates own profile; cannot modify verificationStatus or another 
   // /me still returns THIS provider's row
   const me = await call('GET', '/api/providers/me', undefined, tokenA);
   assert.equal(me.data.profile.userId, providerAId);
-  assert.equal(me.data.profile.businessName, 'Austin Plumbing Pros');
+  assert.equal(me.data.profile.businessName, 'Goa Plumbing Pros');
 
   // Database truth: A still PENDING; B untouched
   assert.equal(await verificationStatus(providerAId), 'PENDING');
@@ -320,7 +320,7 @@ test('admin approves a REJECTED provider → APPROVED + log → publicly searcha
     providerAId,
   ]);
   assert.equal(publicRows.rowCount, 1);
-  assert.equal(publicRows.rows[0].business_name, 'Austin Plumbing Pros');
+  assert.equal(publicRows.rows[0].business_name, 'Goa Plumbing Pros');
 
   const detail = await call('GET', `/api/admin/providers/${providerAId}`, undefined, tokenAdmin);
   const transitions: string[] = detail.data.provider.actions.map(

@@ -9,6 +9,42 @@ const PUBLIC_LINKS = [
   { to: '/providers', label: 'Find a pro' },
 ];
 
+/**
+ * Links per role (Phase 18).
+ *
+ * Each role sees the pages it can actually use, so nobody is shown a screen
+ * that could only fail:
+ *
+ *   CUSTOMER  Dashboard, Find a pro, My bookings, Notifications
+ *   PROVIDER  Booking requests, My business, Notifications
+ *   ADMIN     Provider verification
+ *   signed out  Home, Find a pro (+ Sign in / Join as provider below)
+ *
+ * IMPORTANT: this is presentation only. Hiding a link is not authorization —
+ * `requireAuth`/`requireRole` on the server re-read the role from the database
+ * on every request, so editing the browser gets nobody past the API.
+ */
+interface NavLink {
+  to: string;
+  label: string;
+}
+
+/** Exported so the navigation-per-role contract can be asserted in tests. */
+export const ROLE_LINKS: Record<'CUSTOMER' | 'PROVIDER' | 'ADMIN', NavLink[]> = {
+  CUSTOMER: [
+    { to: '/dashboard', label: 'Dashboard' },
+    { to: '/providers', label: 'Find a pro' },
+    { to: '/bookings', label: 'My bookings' },
+  ],
+  PROVIDER: [
+    { to: '/provider/dashboard', label: 'Booking requests' },
+    { to: '/provider/business', label: 'My business' },
+  ],
+  ADMIN: [
+    { to: '/admin/dashboard', label: 'Provider verification' },
+  ],
+};
+
 const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
   [
     'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
@@ -35,26 +71,9 @@ export default function Navbar() {
   }, [location.pathname, location.search]);
 
 
-  // Each role gets its own area. PROVIDER gets the booking queue; ADMIN gets
-  // provider verification. Public navigation is unchanged for everyone else.
-  const links =
-    user?.role === 'CUSTOMER'
-      ? [
-          { to: '/dashboard', label: 'Dashboard' },
-          ...PUBLIC_LINKS,
-          { to: '/bookings', label: 'My bookings' },
-        ]
-      : user?.role === 'PROVIDER'
-        ? [
-            { to: '/provider/dashboard', label: 'Bookings' },
-            { to: '/providers', label: 'My profile' },
-          ]
-        : user?.role === 'ADMIN'
-          ? [
-              { to: '/admin/dashboard', label: 'Admin dashboard' },
-              { to: '/providers', label: 'Browse providers' },
-            ]
-          : PUBLIC_LINKS;
+  // Signed-out visitors get the public directory; every signed-in role gets its
+  // own area. ADMIN sees only verification, never the customer or provider UI.
+  const links = user ? ROLE_LINKS[user.role] : PUBLIC_LINKS;
 
   async function handleSignOut() {
     await signOut();
@@ -63,6 +82,14 @@ export default function Navbar() {
 
   const AccountLinks = user ? (
     <div className="flex items-center gap-2">
+      {/*
+        Full-page notifications link. The bell opens a dropdown, which is a poor
+        target on touch and unreachable by keyboard shortcut; this is the
+        canonical "see everything" route for customer and provider alike.
+      */}
+      <NavLink to="/notifications" className={navLinkClasses}>
+        Notifications
+      </NavLink>
       <span
         className="hidden max-w-40 truncate text-sm text-ink-soft lg:inline"
         title={user.email}
@@ -79,9 +106,17 @@ export default function Navbar() {
       </button>
     </div>
   ) : (
-    <Link to="/login" className="btn btn-primary px-4 py-2 text-sm">
-      Sign in
-    </Link>
+    <div className="flex items-center gap-2">
+      <Link
+        to="/register"
+        className="btn btn-ghost hidden px-3 py-2 text-sm sm:inline-flex"
+      >
+        Join as provider
+      </Link>
+      <Link to="/login" className="btn btn-primary px-4 py-2 text-sm">
+        Sign in
+      </Link>
+    </div>
   );
 
   return (
@@ -171,9 +206,17 @@ export default function Navbar() {
                 </button>
               </>
             ) : (
-              <Link to="/login" className="btn btn-primary mt-3 w-full px-4 py-2.5 text-sm">
-                Sign in
-              </Link>
+              <div className="mt-3 space-y-2 border-t border-line pt-4">
+                <Link to="/login" className="btn btn-primary block w-full px-4 py-2.5 text-sm">
+                  Sign in
+                </Link>
+                <Link
+                  to="/register"
+                  className="btn btn-ghost block w-full px-4 py-2.5 text-sm"
+                >
+                  Join as provider
+                </Link>
+              </div>
             )}
           </div>
         </div>

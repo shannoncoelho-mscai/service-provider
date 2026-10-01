@@ -270,22 +270,37 @@ export async function searchProviders(p: ProviderSearchParams): Promise<Paginate
   };
 }
 
-/** Category slugs for the filter dropdown — public reference data. */
+/**
+ * The public category list.
+ *
+ * `id` (the category UUID) is included because `POST /api/providers/me/services`
+ * requires a `categoryId`, and the slug alone cannot satisfy that schema —
+ * without it a provider could never create a service from the UI. A category row
+ * id is not sensitive: it is shared reference data, exposes no account or
+ * provider information, and is already the value a provider has to post.
+ * `slug` remains the stable public identifier used in URLs and search filters.
+ */
 export async function listCategoryOptions(): Promise<
-  Array<{ slug: string; name: string; providerCount: number }>
+  Array<{ id: string; slug: string; name: string; providerCount: number }>
 > {
-  const res = await pool.query<{ slug: string; name: string; provider_count: number }>(
-    `SELECT c.slug,
+  const res = await pool.query<{
+    id: string;
+    slug: string;
+    name: string;
+    provider_count: number;
+  }>(
+    `SELECT c.id, c.slug,
             c.name,
             count(DISTINCT s.provider_id)::int AS provider_count
        FROM service_categories c
        LEFT JOIN services s ON s.category_id = c.id AND s.is_active
        LEFT JOIN public_providers v ON v.id = s.provider_id
       WHERE c.is_active
-      GROUP BY c.slug, c.name, c.sort_order
+      GROUP BY c.id, c.slug, c.name, c.sort_order
       ORDER BY c.sort_order, c.name`,
   );
   return res.rows.map((r) => ({
+    id: r.id,
     slug: r.slug,
     name: r.name,
     providerCount: r.provider_count,

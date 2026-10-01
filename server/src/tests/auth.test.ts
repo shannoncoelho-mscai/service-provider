@@ -197,7 +197,7 @@ test('RBAC: provider token → admin endpoint rejected with 403', async () => {
     {
       role: 'PROVIDER',
       email: email('rbac-provider'),
-      provider: { businessName: 'RBAC Test Repairs', city: 'Austin' },
+      provider: { businessName: 'RBAC Test Repairs', city: 'Panaji' },
     },
     'rbac-provider',
   );
@@ -239,7 +239,7 @@ test('login: provider registration creates a PENDING (not public) profile', asyn
     {
       role: 'PROVIDER',
       email: email('pending-provider'),
-      provider: { businessName: 'Pending Plumbing Co.', city: 'Dallas' },
+      provider: { businessName: 'Pending Plumbing Co.', city: 'Mapusa' },
     },
     'pending-provider',
   );
@@ -255,4 +255,121 @@ test('login: provider registration creates a PENDING (not public) profile', asyn
   assert.equal(profile.rowCount, 1);
   assert.equal(profile.rows[0].verification_status, 'PENDING');
   assert.equal(profile.rows[0].is_public, false, 'unapproved provider must not be public');
+});
+
+/* ==========================================================================
+   Phase 18 — Indian provider onboarding
+   A provider must be able to supply a complete business profile at sign-up,
+   and MUST still land as PENDING/non-public whatever they send.
+   ========================================================================== */
+
+test('provider registration stores business name, description, phone, areas and experience', async () => {
+  const created = await register(
+    {
+      role: 'PROVIDER',
+      email: email('full-provider'),
+      provider: {
+        businessName: 'Ganpati Aqua Plumbing',
+        city: 'Panaji',
+        description: 'Family-run plumbing business since 2015.',
+        phone: '+91-98220-12345',
+        serviceAreas: ['Panaji', 'Dona Paula'],
+        yearsExperience: 9,
+        hourlyRate: 7500,
+      },
+    },
+    'full-provider',
+  );
+  assert.equal(created.status, 201);
+
+  const row = await pool.query(
+    `SELECT p.business_name, p.description, p.phone, p.city,
+            p.service_areas, p.years_experience, p.hourly_rate,
+            p.verification_status, p.is_public
+       FROM provider_profiles p
+       JOIN users u ON u.id = p.user_id
+      WHERE u.email = $1`,
+    [created.data.user.email],
+  );
+  assert.equal(row.rowCount, 1);
+  const p = row.rows[0];
+  assert.equal(p.business_name, 'Ganpati Aqua Plumbing');
+  assert.equal(p.description, 'Family-run plumbing business since 2015.');
+  assert.equal(p.phone, '+91-98220-12345');
+  assert.equal(p.city, 'Panaji');
+  assert.deepEqual(p.service_areas, ['Panaji', 'Dona Paula']);
+  assert.equal(p.years_experience, 9);
+  // The rate is stored as a plain NUMERIC — never a currency string.
+  assert.equal(String(p.hourly_rate), '7500.00');
+  assert.match(String(p.hourly_rate), /^[0-9.]+$/, 'price must be numeric, not a currency string');
+
+  // Supplying a full profile must NOT make the provider public.
+  assert.equal(p.verification_status, 'PENDING');
+  assert.equal(p.is_public, false);
+});
+
+test('provider registration cannot set its own verification status', async () => {
+  // A hand-crafted body trying to self-approve must not work: the endpoint
+  // reads no status from the payload, and the schema is strict.
+  const created = await register(
+    {
+      role: 'PROVIDER',
+      email: email('sneaky-provider'),
+      provider: {
+        businessName: 'Sneaky Services',
+        city: 'Margao',
+        verificationStatus: 'APPROVED',
+      },
+    },
+    'sneaky-provider',
+  );
+  const row = await pool.query<{ verification_status: string; is_public: boolean }>(
+    `SELECT p.verification_status, p.is_public
+       FROM provider_profiles p
+       JOIN users u ON u.id = p.user_id
+      WHERE u.email = $1`,
+    [created.data.user.email],
+  );
+  if (created.status === 201) {
+    assert.equal(row.rows[0].verification_status, 'PENDING');
+    assert.equal(row.rows[0].is_public, false);
+  } else {
+    assert.equal(created.status, 400, 'an unknown field must be a 400, not a silent accept');
+  }
+});
+
+test('provider registration rejects service areas that are not a list of strings', async () => {
+  const created = await register(
+    {
+      role: 'PROVIDER',
+      email: email('bad-areas'),
+      provider: { businessName: 'Bad Areas Co.', city: 'Ponda', serviceAreas: 'Panaji' },
+    },
+    'bad-areas',
+  );
+  assert.equal(created.status, 400);
+});
+
+test('provider registration rejects a negative years of experience', async () => {
+  const created = await register(
+    {
+      role: 'PROVIDER',
+      email: email('bad-years'),
+      provider: { businessName: 'Bad Years Co.', city: 'Ponda', yearsExperience: -3 },
+    },
+    'bad-years',
+  );
+  assert.equal(created.status, 400);
+});
+
+test('provider registration rejects a non-positive price', async () => {
+  const created = await register(
+    {
+      role: 'PROVIDER',
+      email: email('bad-price'),
+      provider: { businessName: 'Bad Price Co.', city: 'Ponda', hourlyRate: 0 },
+    },
+    'bad-price',
+  );
+  assert.equal(created.status, 400);
 });

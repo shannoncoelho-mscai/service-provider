@@ -27,10 +27,10 @@ export const CATEGORIES = CAT.map(([name, slug, description], i) => ({
   id: u(1000 + i), name, slug, description, sortOrder: i,
 }));
 
-export const ADMIN = { id: u(1), email: 'admin@serviceconnect.example.com', name: 'Avery Stone' };
+export const ADMIN = { id: u(1), email: 'admin@serviceconnect.example.com', name: 'Ananya Deshmukh' };
 export const CUSTOMERS = [
-  { id: u(10), email: 'ava.reynolds@example.com', name: 'Ava Reynolds', phone: '+1-512-555-0101' },
-  { id: u(11), email: 'ben.carter@example.com', name: 'Ben Carter', phone: '+1-214-555-0102' },
+  { id: u(10), email: 'aarav@example.com', name: 'Aarav Kulkarni', phone: '+91-98220-11001' },
+  { id: u(11), email: 'diya@example.com', name: 'Diya Menon', phone: '+91-94470-11002' },
 ];
 
 export type SeedStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
@@ -44,35 +44,47 @@ export interface SeedProvider {
   /** index into CATEGORIES */
   category: number;
   city: string;
+  /** Nearby towns the provider will travel to. Drives the public "service areas". */
+  areas: string[];
   status: SeedStatus;
   rate: string;
   services: [title: string, price: string][];
 }
 
-/** 11 fictional providers: 8 APPROVED (public) + PENDING/REJECTED/SUSPENDED. */
+/**
+ * 11 fictional providers: 8 APPROVED (public) + PENDING/REJECTED/SUSPENDED.
+ *
+ * Indian market (Goa) fixtures: Konkani/Goan business names, real city names,
+ * and prices in rupees on a scale that matches the market — a plumbing call-out
+ * runs into the thousands, a full home repaint into the tens of thousands.
+ *
+ * `rate` is the provider's advertised starting rate, NOT an hourly figure; the
+ * UI labels it "from". Every price is a plain numeric string, exactly as
+ * PostgreSQL returns NUMERIC: no currency symbol is stored anywhere.
+ */
 export const PROVIDERS: SeedProvider[] = [
-  { n: 100, email: 'contact@aquafix.example.com', owner: 'Marcus Rivera', business: 'AquaFix Plumbing Co.', category: 0, city: 'Austin', status: 'APPROVED', rate: '95.00',
-    services: [['Emergency pipe repair', '120.00'], ['Drain unclogging', '90.00']] },
-  { n: 101, email: 'contact@voltwright.example.com', owner: 'Priya Nair', business: 'VoltRight Electrical', category: 1, city: 'Dallas', status: 'APPROVED', rate: '110.00',
-    services: [['Electrical panel inspection', '150.00'], ['Outlet installation', '80.00']] },
-  { n: 102, email: 'contact@hammerhead.example.com', owner: 'Tom Becker', business: 'Hammerhead Carpentry', category: 2, city: 'Houston', status: 'APPROVED', rate: '85.00',
-    services: [['Custom shelving build', '350.00'], ['Door installation', '140.00']] },
-  { n: 103, email: 'contact@brightcoat.example.com', owner: 'Elena Duarte', business: 'BrightCoat Painting', category: 3, city: 'San Antonio', status: 'APPROVED', rate: '70.00',
-    services: [['Interior room repaint', '400.00'], ['Exterior trim painting', '260.00']] },
-  { n: 104, email: 'contact@sparklehive.example.com', owner: 'Grace Kim', business: 'SparkleHive Cleaning', category: 4, city: 'Austin', status: 'APPROVED', rate: '45.00',
-    services: [['Deep clean (3 bed)', '220.00'], ['Move-out cleaning', '180.00']] },
-  { n: 105, email: 'contact@gadgetdocs.example.com', owner: 'Owen Patel', business: 'GadgetDocs Appliance Repair', category: 5, city: 'Dallas', status: 'APPROVED', rate: '90.00',
-    services: [['Washer diagnosis', '95.00'], ['Refrigerator repair', '130.00']] },
-  { n: 106, email: 'contact@nestcraft.example.com', owner: 'Sofia Lindqvist', business: 'NestCraft Interiors', category: 6, city: 'Houston', status: 'APPROVED', rate: '120.00',
-    services: [['Room redesign consultation', '200.00'], ['Full-home staging', '900.00']] },
-  { n: 107, email: 'contact@torqueauto.example.com', owner: 'Dmitri Volkov', business: 'TorqueAuto Motors', category: 7, city: 'San Antonio', status: 'APPROVED', rate: '100.00',
-    services: [['Brake service', '280.00'], ['Engine diagnostics', '110.00']] },
-  { n: 108, email: 'contact@quickpatch.example.com', owner: 'Ana Souza', business: 'QuickPatch Plumbing', category: 0, city: 'Austin', status: 'PENDING', rate: '80.00',
-    services: [['Leak patching', '70.00']] },
-  { n: 109, email: 'contact@shadowvolt.example.com', owner: 'Kyle Mercer', business: 'ShadowVolt Services', category: 1, city: 'Dallas', status: 'REJECTED', rate: '75.00',
-    services: [['Wiring upgrade', '300.00']] },
-  { n: 110, email: 'contact@pureshine.example.com', owner: 'Nadia Haddad', business: 'PureShine Office Cleaning', category: 4, city: 'Houston', status: 'SUSPENDED', rate: '55.00',
-    services: [['Office cleaning (per visit)', '260.00']] },
+  { n: 100, email: 'contact@ganpatiacqua.example.com', owner: 'Rajesh Naik', business: 'Ganpati Aqua Plumbing', category: 0, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Dona Paula'], status: 'APPROVED', rate: '7500.00',
+    services: [['Emergency pipe repair', '4500.00'], ['Drain unclogging', '2500.00']] },
+  { n: 101, email: 'contact@voltwright.example.com', owner: 'Priya Kamat', business: 'VoltRight Electrical Works', category: 1, city: 'Mapusa', areas: ['Mapusa', 'Sichim', 'Assemode'], status: 'APPROVED', rate: '9000.00',
+    services: [['Electrical panel inspection', '3500.00'], ['Outlet installation', '1800.00']] },
+  { n: 102, email: 'contact@teakcraft.example.com', owner: 'Sunil Pawar', business: 'TeakCraft Carpentry', category: 2, city: 'Margao', areas: ['Margao', 'Cavelossim', 'Madgaon'], status: 'APPROVED', rate: '12000.00',
+    services: [['Custom shelving build', '18000.00'], ['Door installation', '9500.00']] },
+  { n: 103, email: 'contact@brightcoat.example.com', owner: 'Farhan Khan', business: 'BrightCoat Painters', category: 3, city: 'Ponda', areas: ['Ponda', 'Vodlem', 'Borim'], status: 'APPROVED', rate: '15000.00',
+    services: [['Interior room repaint', '24000.00'], ['Exterior trim painting', '16000.00']] },
+  { n: 104, email: 'contact@sparklehive.example.com', owner: 'Meera Fernandes', business: 'SparkleHive Home Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Saligao', 'Arpora'], status: 'APPROVED', rate: '3000.00',
+    services: [['Deep clean (3 bed)', '6500.00'], ['Move-out cleaning', '8000.00']] },
+  { n: 105, email: 'contact@servicekart.example.com', owner: 'Rohit Shirodkar', business: 'ServiceKart Appliance Care', category: 5, city: 'Vasco da Gama', areas: ['Vasco da Gama', 'Dabolim', 'Mormugao'], status: 'APPROVED', rate: '7500.00',
+    services: [['Washing machine diagnosis', '2000.00'], ['Refrigerator repair', '2800.00']] },
+  { n: 106, email: 'contact@nestcraft.example.com', owner: 'Anjali Prabhu', business: 'NestCraft Interiors', category: 6, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Old Goa'], status: 'APPROVED', rate: '15000.00',
+    services: [['Room redesign consultation', '5000.00'], ['Full-home staging', '85000.00']] },
+  { n: 107, email: 'contact@garagegoa.example.com', owner: 'Vikram Sawant', business: 'Goa Garage Motors', category: 7, city: 'Mapusa', areas: ['Mapusa', 'Aldona', 'Bicholim'], status: 'APPROVED', rate: '10000.00',
+    services: [['Brake service', '5500.00'], ['Engine diagnostics', '3500.00']] },
+  { n: 108, email: 'contact@quickpatch.example.com', owner: 'Sandeep Naik', business: 'QuickPatch Plumbing', category: 0, city: 'Margao', areas: ['Margao', 'Curtorim'], status: 'PENDING', rate: '6000.00',
+    services: [['Leak patching', '1500.00']] },
+  { n: 109, email: 'contact@shadowvolt.example.com', owner: 'Kunal Raikar', business: 'ShadowVolt Services', category: 1, city: 'Ponda', areas: ['Ponda', 'Satari'], status: 'REJECTED', rate: '8000.00',
+    services: [['Wiring upgrade', '22000.00']] },
+  { n: 110, email: 'contact@pureshine.example.com', owner: 'Nikhil Patil', business: 'PureShine Office Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Candolim'], status: 'SUSPENDED', rate: '4000.00',
+    services: [['Office cleaning (per visit)', '12000.00']] },
 ];
 
 // --- bookings: covers all six statuses; scheduled = day offset from today --

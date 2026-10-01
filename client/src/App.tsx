@@ -12,6 +12,7 @@ import MyBookingsPage from './pages/MyBookingsPage';
 import BookingDetailPage from './pages/BookingDetailPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ProviderDashboardPage from './pages/ProviderDashboardPage';
+import ProviderBusinessPage from './pages/ProviderBusinessPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminProviderPage from './pages/AdminProviderPage';
 import { AuthProvider } from './lib/auth-context';
@@ -53,10 +54,19 @@ export default function App() {
               <Route path="/bookings/:id" element={<BookingDetailPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/provider/dashboard" element={<ProviderDashboardPage />} />
+              {/* The provider's own profile + service catalogue (Phase 18). */}
+              <Route path="/provider/business" element={<ProviderBusinessPage />} />
               <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
               <Route path="/admin/providers/:id" element={<AdminProviderPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/login" element={<LoginPage />} />
+              {/* Sign-up entry point. Opens the register tab with the provider
+                  role pre-selected, so "Join as provider" lands on the business
+                  form rather than making the visitor click through. */}
+              <Route
+                path="/register"
+                element={<LoginPage initialMode="register" initialRole="PROVIDER" />}
+              />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </main>

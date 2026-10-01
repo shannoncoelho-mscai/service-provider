@@ -47,7 +47,14 @@ export interface ProviderSearchResponse {
 }
 
 /** One entry from GET /api/providers/categories. */
+/**
+ * A service category from `GET /api/providers/categories`.
+ *
+ * `id` is the category UUID, required by `POST /api/providers/me/services`;
+ * `slug` is the stable public identifier used in search URLs and filters.
+ */
 export interface CategoryOption {
+  id: string;
   slug: string;
   name: string;
   providerCount: number;
@@ -317,6 +324,44 @@ export interface ProviderProfile {
   updatedAt: string;
 }
 
+/**
+ * PATCH /api/providers/me — the editable subset of the provider's own profile.
+ *
+ * Mirrors the server's `updateProviderSchema`, which is `.strict()`: sending any
+ * key not listed here is a 400, not a silent no-op. That is deliberate — it is
+ * what stops a provider from trying to set `verificationStatus` or `isPublic`
+ * on their own row. Money fields are `string | number` because the API returns
+ * NUMERIC as a string but an edit form holds a number.
+ */
+export interface UpdateMyProviderInput {
+  businessName?: string;
+  description?: string | null;
+  phone?: string | null;
+  city?: string;
+  address?: string | null;
+  serviceAreas?: string[];
+  yearsExperience?: number;
+  hourlyRate?: string | number | null;
+}
+
+/**
+ * POST /api/providers/me/services — the provider's own service catalogue.
+ *
+ * `categoryId` is a UUID chosen from the category list, NOT a client-supplied
+ * provider id: the owning provider is always taken from the verified session
+ * server-side. Prices are plain numbers in rupees; the ₹ symbol is added only
+ * when they are displayed.
+ */
+export interface CreateServiceInput {
+  categoryId: string;
+  name: string;
+  description?: string | null;
+  priceFrom: number;
+  priceTo?: number | null;
+  durationMinutes?: number | null;
+  isActive?: boolean;
+}
+
 /* ==========================================================================
    Admin provider verification (ADR-027)
    ========================================================================== */
@@ -342,6 +387,26 @@ export interface AdminProviderOwner {
  */
 export interface AdminProviderDetail extends ProviderProfile {
   owner: AdminProviderOwner;
+  /**
+   * The provider's service catalogue as the admin sees it (Phase 18).
+   *
+   * Distinct from the provider's own `PublicService[]` shape: the review screen
+   * needs `isActive` so an admin can see that a soft-deleted service exists,
+   * which the public DTO deliberately omits.
+   */
+  services: AdminProviderService[];
+}
+
+/** One service row on the admin review screen. */
+export interface AdminProviderService {
+  id: string;
+  name: string;
+  description: string | null;
+  categoryName: string;
+  priceFrom: string;
+  priceTo: string | null;
+  durationMinutes: number | null;
+  isActive: boolean;
 }
 
 /** One row of the verification audit trail. */

@@ -82,7 +82,7 @@ async function registerProvider(email: string, name: string, business: string) {
     password: 'StrongPass123!',
     fullName: name,
     role: 'PROVIDER',
-    provider: { businessName: business, city: 'Austin' },
+    provider: { businessName: business, city: 'Panaji' },
   });
   assert.equal(res.status, 201, `register ${email} failed`);
   return { token: res.data.token as string, id: res.data.user.id as string };

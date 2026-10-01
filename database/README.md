@@ -60,6 +60,29 @@ email/phone), never via raw `provider_profiles`.
 - 19 services, 11 images, 7 bookings (all six statuses), 2 reviews, 3 admin logs
 - Shared dev password `Password123!` (scrypt-hashed) — **development only**
 
+### Seed accounts (all fictional, Indian market)
+
+| Role | Email | Notes |
+|------|-------|-------|
+| ADMIN | `admin@serviceconnect.example.com` | Ananya Deshmukh |
+| CUSTOMER | `aarav@example.com` | Aarav Kulkarni, Panaji |
+| CUSTOMER | `diya@example.com` | Diya Menon, Mapusa |
+| PROVIDER | `contact@ganpatiacqua.example.com` | Ganpati Aqua Plumbing — Panaji, APPROVED |
+| PROVIDER | `contact@voltwright.example.com` | VoltRight Electrical Works — Mapusa, APPROVED |
+| PROVIDER | `contact@teakcraft.example.com` | TeakCraft Carpentry — Margao, APPROVED |
+| PROVIDER | `contact@brightcoat.example.com` | BrightCoat Painters — Ponda, APPROVED |
+| PROVIDER | `contact@sparklehive.example.com` | SparkleHive Home Cleaning — Porvorim, APPROVED |
+| PROVIDER | `contact@servicekart.example.com` | ServiceKart Appliance Care — Vasco da Gama, APPROVED |
+| PROVIDER | `contact@nestcraft.example.com` | NestCraft Interiors — Panaji, APPROVED |
+| PROVIDER | `contact@garagegoa.example.com` | Goa Garage Motors — Mapusa, APPROVED |
+| PROVIDER | `contact@quickpatch.example.com` | QuickPatch Plumbing — Margao, **PENDING** |
+| PROVIDER | `contact@shadowvolt.example.com` | ShadowVolt Services — Ponda, **REJECTED** |
+| PROVIDER | `contact@pureshine.example.com` | PureShine Office Cleaning — Porvorim, **SUSPENDED** |
+
+Only the 8 APPROVED providers appear in public search and on public profiles; the
+PENDING, REJECTED and SUSPENDED ones exist so the verification flow can be exercised
+end to end. Prices are plain `NUMERIC` rupees — no currency symbol is stored anywhere.
+
 Deterministic UUIDs (`00000000-0000-4000-8000-…`) keep fixtures referenceable.
 The seeder skips if data exists; `--force` is refused when `NODE_ENV=production`.
 

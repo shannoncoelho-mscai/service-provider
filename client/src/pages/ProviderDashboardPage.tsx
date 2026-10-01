@@ -116,9 +116,9 @@ function NoBookingsYet() {
         here. Make sure your services are listed, current and priced.
       </p>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-        <Link to="/providers" className="btn btn-ghost px-4 py-2.5 text-sm">
+        <Link to="/provider/business" className="btn btn-ghost px-4 py-2.5 text-sm">
           <Store className="h-4 w-4" aria-hidden="true" />
-          View my public profile
+          Manage my business
         </Link>
       </div>
     </div>
@@ -347,9 +347,9 @@ export default function ProviderDashboardPage() {
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">Refresh</span>
           </button>
-          <Link to="/providers" className="btn btn-ghost px-3.5 py-2.5 text-sm">
+          <Link to="/provider/business" className="btn btn-ghost px-3.5 py-2.5 text-sm">
             <Store className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">My profile</span>
+            <span className="hidden sm:inline">My business</span>
           </Link>
         </div>
       </div>

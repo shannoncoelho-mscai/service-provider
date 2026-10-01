@@ -131,20 +131,20 @@ export default function FilterPanel({
 
       {/* Price --------------------------------------------------------- */}
       <div>
-        <FieldLabel htmlFor="filter-min-price">Price range</FieldLabel>
+        <FieldLabel htmlFor="filter-min-price">Price range (₹)</FieldLabel>
         <div className="flex items-center gap-2">
           <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-line px-2.5 focus-within:border-brand-300">
             <Wallet className="h-3.5 w-3.5 shrink-0 text-brand-500" aria-hidden="true" />
             <input
               id="filter-min-price"
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
               min={0}
               step={1}
               value={draft.minPrice}
               onChange={(e) => onDraftChange({ minPrice: e.target.value })}
               placeholder="Min"
-              aria-label="Minimum price"
+              aria-label="Minimum price in rupees"
               className="w-full bg-transparent py-2.5 text-sm focus:outline-none"
             />
           </div>
@@ -154,13 +154,13 @@ export default function FilterPanel({
           <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-line px-2.5 focus-within:border-brand-300">
             <input
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
               min={0}
               step={1}
               value={draft.maxPrice}
               onChange={(e) => onDraftChange({ maxPrice: e.target.value })}
               placeholder="Max"
-              aria-label="Maximum price"
+              aria-label="Maximum price in rupees"
               className="w-full bg-transparent py-2.5 text-sm focus:outline-none"
             />
           </div>

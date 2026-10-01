@@ -1941,3 +1941,106 @@ No architectural decision was made. The four fixes are corrections to existing
 decisions (ADR-029's notification route, ADR-029's refresh strategy, and the
 existing UI-component conventions), not new choices worth a numbered record. Per
 the brief, an ADR was not created just to increment the number.
+
+---
+
+## Step 017 — Indian market localisation and role-aligned onboarding
+
+**Goal.** Retarget ServiceConnect at India (INR, Indian demo data) and make the
+customer / provider / admin journeys legible end to end, without rebuilding anything
+that already worked.
+
+**Verified baseline before starting:** server 248 passing, client 291 passing, typecheck
+and production build clean.
+
+### What was found by inspecting first
+
+Reading the code before editing it changed the shape of this step substantially:
+
+- The USD problem was **one function**. All eight price surfaces already delegated to
+  `formatPrice`, so no sweep was needed.
+- Provider registration **already existed server-side** — schema, PENDING default, admin
+  verification. Only the frontend never offered it, behind a comment saying the work
+  "is a later phase". That comment was the defect.
+- The `PATCH /providers/me` and four `/providers/me/services` endpoints existed and were
+  tested, but **had no UI at all**.
+- Two links labelled "my profile" pointed at the **public search directory**.
+- One genuine server bug: provider service creation was **unreachable from any UI**.
+
+### Changes
+
+**Currency.** `formatPrice` now uses `Intl.NumberFormat('en-IN', { style: 'currency',
+currency: 'INR', maximumFractionDigits: 0 })`, built once at module scope. `en-IN` was
+chosen over `en-US` + `currency: 'INR'` deliberately: it applies lakh grouping, so
+123456 renders `₹1,23,456`. Verified against Node before writing any code.
+
+Prices stay plain `NUMERIC` in the database. No symbol is ever stored, and the tests
+assert the stored rate matches `/^[0-9.]+$/`. The `hourlyRate` ceiling was raised from
+`10_000` to `10_000_000` — the old cap was below a realistic Indian business rate and
+would have rejected valid input.
+
+**Demo data (seed only, no schema change).** Goa cities (Panaji, Mapusa, Margao, Ponda,
+Porvorim, Vasco da Gama), Goan business names, `+91` numbers, and rupee-scale prices
+(₹1,500–₹85,000). Providers gained realistic `serviceAreas`, and `seed.ts` now writes
+phone and areas that the schema already supported. Customer addresses and booking quotes
+were localised too. Server test fixtures were localised for consistency.
+
+**Provider registration.** `providerDetails` gained `phone`, `serviceAreas` and
+`yearsExperience`; the INSERT persists them and still **omits `verification_status`**, so
+the `DEFAULT 'PENDING'` applies. `LoginPage` now serves both roles: a customer/provider
+chooser, provider business fields, service-area chips for the six Goa towns, and a
+contact number. `/register` opens it directly in provider mode for "Join as provider".
+
+**Provider "My business" page** (`/provider/business`) — profile editing and full
+service add/edit/delete, over the endpoints that already existed. Sends only changed
+fields, since the server rejects an empty body. Shows the verification status, the
+required PENDING wording, and a read-only summary of what the public profile will show
+(useful while PENDING, when a provider cannot preview their own page at all).
+
+**Role-aware navigation and routing.** `homeForRole()` sends CUSTOMER/PROVIDER/ADMIN to
+their own dashboards, driven by the role the **server returned** — never a form
+selection. `ROLE_LINKS` is exported so the per-role contract is testable. Admin links
+appear only for admins. Both pre-existing "my profile" links were repointed from the
+public directory to the provider's own page.
+
+**Admin review** now shows the provider's service catalogue with INR prices, since an
+application cannot be judged without knowing what the business sells. Active and inactive
+services are both listed; the reviewer sees the full picture.
+
+### Bugs found and fixed along the way
+
+| Bug | Cause | Fix |
+|---|---|---|
+| Provider service creation impossible from a UI | `POST /me/services` needs a UUID `categoryId`; the categories endpoint returned only `slug` | Added `id` to `GET /providers/categories` |
+| "My profile" showed other businesses | Both links pointed at `/providers`, the public search page | Repointed to `/provider/business`, with a source-level regression test |
+| Provider sign-in landed on a customer page | `LoginPage` always navigated to `/bookings` | `homeForRole()` |
+| `client/package.json` became unparseable | A PowerShell `ConvertTo-Json` round-trip wrote a UTF-8 BOM | BOM stripped |
+
+### Testing
+
+Nothing was deleted or weakened. Where an assertion encoded old data (US cities, `$90`),
+it was updated to the new intended output and the test's intent preserved — and in one
+case *strengthened*: the "owner.isActive must not leak" test searched the serialized
+JSON for the string, which would have false-failed on any `false` value in a service
+row. It now checks the key on the view object, which is what it actually meant.
+
+**Added:** `currency.test.ts` (formatter contract: ₹ symbol, lakh grouping, whole
+rupees, null-not-₹0, plus a guard that no component hand-rolls a price, plus
+`homeForRole` and `ROLE_LINKS` contracts); 5 server tests for the new registration
+fields, including a hand-crafted `verificationStatus: 'APPROVED'` attempt; 2 regression
+tests for the provider link bug.
+
+**Result: server 253 passing (248 + 5), client 305 passing (291 + 14), typecheck clean,
+production build clean.**
+
+### Database
+
+**No migrations. No schema changes.** Seed data only. The existing `NUMERIC` price
+columns, `TEXT[]` service areas and ₹-agnostic query layer are what made this a data
+change rather than an architectural one. Run `npm run seed -- --force` in development to
+reload fixtures; `npm run seed` alone is a no-op when data is present, as before.
+
+### Not done
+
+Payments, chat, outbound notification channels, password reset, rate limiting, and any
+second currency or i18n framework. Unchanged from previous phases.

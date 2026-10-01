@@ -26,6 +26,31 @@ export type Decision = Extract<VerificationStatus, 'APPROVED' | 'REJECTED' | 'SU
 
 export interface AdminProviderDetail extends ProviderProfileDto {
   owner: { fullName: string; email: string; isActive: boolean };
+  /**
+   * The provider's service catalogue, for review.
+   *
+   * An admin cannot judge a business application without seeing what it
+   * actually sells and at what price — that is the whole point of reviewing
+   * one. Only the provider's OWN rows are selected (`provider_id = $1`), so
+   * this can never leak another provider's catalogue.
+   *
+   * Inactive (soft-deleted) services are included deliberately: an admin
+   * deciding whether to approve needs to see the full history, not a curated
+   * subset. Prices are numeric strings; the rupee symbol is added by the UI.
+   */
+  services: AdminProviderService[];
+}
+
+/** One service row as the admin review screen needs it — nothing more. */
+export interface AdminProviderService {
+  id: string;
+  name: string;
+  description: string | null;
+  categoryName: string;
+  priceFrom: string;
+  priceTo: string | null;
+  durationMinutes: number | null;
+  isActive: boolean;
 }
 
 export interface AdminProviderAction {
@@ -42,6 +67,44 @@ interface OwnerRow {
   is_active: boolean;
 }
 
+/**
+ * The provider's own services, for the admin review screen.
+ *
+ * Scoped to a single provider id, and deliberately NOT reading through the
+ * `public_providers` view: a PENDING provider is not in that view at all, yet
+ * their services are exactly what a reviewer needs to see.
+ */
+async function listServicesFor(providerId: string): Promise<AdminProviderService[]> {
+  const res = await pool.query<{
+    id: string;
+    name: string;
+    description: string | null;
+    category_name: string;
+    price_from: string;
+    price_to: string | null;
+    duration_minutes: number | null;
+    is_active: boolean;
+  }>(
+    `SELECT s.id, s.name, s.description, s.price_from, s.price_to,
+            s.duration_minutes, s.is_active, c.name AS category_name
+       FROM services s
+       JOIN service_categories c ON c.id = s.category_id
+      WHERE s.provider_id = $1
+      ORDER BY s.is_active DESC, c.sort_order, s.name`,
+    [providerId],
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    categoryName: r.category_name,
+    priceFrom: r.price_from,
+    priceTo: r.price_to,
+    durationMinutes: r.duration_minutes,
+    isActive: r.is_active,
+  }));
+}
+
 export async function listPending(): Promise<AdminProviderDetail[]> {
   const res = await pool.query<ProfileRow & OwnerRow>(
     `SELECT ${PROFILE_COLUMNS}, u.full_name, u.email, u.is_active
@@ -50,7 +113,7 @@ export async function listPending(): Promise<AdminProviderDetail[]> {
       WHERE p.verification_status = 'PENDING'
       ORDER BY p.created_at ASC`,
   );
-  return res.rows.map((row) => toDetail(row));
+  return Promise.all(res.rows.map(async (row) => toDetail(row, await listServicesFor(row.user_id))));
 }
 
 export async function getDetail(providerId: string): Promise<
@@ -82,7 +145,7 @@ export async function getDetail(providerId: string): Promise<
   );
 
   return {
-    ...toDetail(row),
+    ...toDetail(row, await listServicesFor(row.user_id)),
     actions: actions.rows.map((a) => ({
       action: a.action,
       previousStatus: a.previous_status,
@@ -93,10 +156,14 @@ export async function getDetail(providerId: string): Promise<
   };
 }
 
-function toDetail(row: ProfileRow & OwnerRow): AdminProviderDetail {
+function toDetail(
+  row: ProfileRow & OwnerRow,
+  services: AdminProviderService[],
+): AdminProviderDetail {
   const { full_name, email, is_active, ...profile } = row;
   return {
     ...toProfileDto(profile),
+    services,
     owner: { fullName: full_name, email, isActive: is_active },
   };
 }

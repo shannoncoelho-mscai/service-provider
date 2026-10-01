@@ -2,6 +2,7 @@ import type {
   AdminDecision,
   AdminProviderDetail,
   AdminProviderReview,
+  AdminProviderService,
   VerificationStatus,
 } from '../types';
 
@@ -50,6 +51,12 @@ export interface AdminProviderView {
   isPublic: boolean;
   createdAt: string;
   verifiedAt: string | null;
+  /**
+   * The provider's catalogue, for the reviewer. Copied field by field rather
+   * than spread, so a future column added to the API cannot silently appear on
+   * the admin screen without someone deciding it belongs there.
+   */
+  services: AdminProviderService[];
 }
 
 /** Project an admin DTO onto the renderable view. Pure; copies arrays. */
@@ -73,6 +80,7 @@ export function adminProviderView(provider: AdminProviderDetail): AdminProviderV
     isPublic: provider.isPublic,
     createdAt: provider.createdAt,
     verifiedAt: provider.verifiedAt,
+    services: (provider.services ?? []).map((service) => ({ ...service })),
   };
 }
 

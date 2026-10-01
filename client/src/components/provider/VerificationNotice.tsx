@@ -18,7 +18,7 @@ const COPY: Record<
     Icon: Clock,
     tone: 'border-accent-100 bg-accent-50 text-accent-600',
     title: 'Awaiting verification',
-    body: 'Your provider profile is being reviewed by our team. Customers cannot find or book you until it is approved. Booking requests will start appearing here once you are approved.',
+    body: 'Your provider profile is pending administrator verification. You will appear in public listings after approval. Booking requests will start appearing here once you are approved.',
   },
   APPROVED: {
     Icon: BadgeCheck,

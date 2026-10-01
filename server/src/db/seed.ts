@@ -85,13 +85,22 @@ async function main(): Promise<void> {
       const decided = p.status !== 'PENDING';
       await client.query(
         `INSERT INTO provider_profiles
-           (user_id, business_name, description, city, years_experience,
-            hourly_rate, verification_status, verified_by, verified_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           (user_id, business_name, description, phone, city, service_areas,
+            years_experience, hourly_rate, verification_status, verified_by, verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (user_id) DO NOTHING`,
         [
-          u(p.n), p.business, `${p.business} — fictional demo provider in ${p.city}.`,
-          p.city, 3 + (p.n % 8), p.rate, p.status,
+          u(p.n),
+          p.business,
+          `${p.business} — a fictional demo ${CATEGORIES[p.category].name.toLowerCase()} provider serving ${p.city} and nearby areas of Goa.`,
+          // Deterministic fictional Indian mobile number. The last two digits
+          // vary per provider so no two demo businesses share a contact number.
+          `+91-98${String(220 + (p.n % 70)).padStart(3, '0')}-${String(10000 + p.n).slice(-5)}`,
+          p.city,
+          p.areas,
+          3 + (p.n % 8),
+          p.rate,
+          p.status,
           decided ? ADMIN.id : null,
           decided ? daysFromNow(-3) : null,
         ],
@@ -123,7 +132,9 @@ async function main(): Promise<void> {
          ON CONFLICT (id) DO NOTHING`,
         [
           u(b.id), u(b.customer), u(b.provider), u(b.service), b.status,
-          daysFromNow(b.scheduled), '123 Demo Lane, TX', '150.00',
+          // Goa-relative customer address and an INR quote, matching the
+          // Indian market the rest of the fixtures now describe.
+          daysFromNow(b.scheduled), '12 Nehru Marg, Panaji, Goa 403001', '4500.00',
           b.cancellation ?? null, b.rejection ?? null, daysFromNow(-12),
         ],
       );

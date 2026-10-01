@@ -6,6 +6,9 @@
  * transition the server forbids, to prove the UI cannot offer it.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -27,6 +30,9 @@ import ProviderBookingCard from '../components/provider/ProviderBookingCard';
 import ProviderSummaryCards from '../components/provider/ProviderSummaryCards';
 import VerificationNotice from '../components/provider/VerificationNotice';
 import type { Booking, BookingStatus } from '../types';
+
+// ESM has no __dirname; resolve from this module's own URL.
+const PAGES = join(dirname(fileURLToPath(import.meta.url)), '..', 'pages');
 
 function makeBooking(over: Partial<Booking> = {}): Booking {
   return {
@@ -369,7 +375,12 @@ describe('VerificationNotice', () => {
   it('explains a PENDING verification without implying the provider is bookable', () => {
     const html = renderToStaticMarkup(<VerificationNotice status="PENDING" />);
     assert.match(html, /Awaiting verification/);
-    assert.match(html, /being reviewed/i);
+    // Phase 18 fixes the wording: it must say plainly that the profile is
+    // pending ADMIN verification and that public listings follow approval.
+    assert.match(html, /pending administrator verification/i);
+    assert.match(html, /public listings after approval/i);
+    // Still must not imply the provider is already live.
+    assert.ok(!/you are (now )?bookable|customers can book you/i.test(html));
   });
 
   it('confirms an APPROVED provider', () => {
@@ -396,3 +407,38 @@ describe('VerificationNotice', () => {
 
 
 
+
+/* ------------------------------------------------------- provider links -- */
+
+describe('provider self-service links (Phase 18)', () => {
+  it('never sends a provider to the PUBLIC directory for "my profile"', () => {
+    // Regression: "My profile" and "View my public profile" both pointed at
+    // /providers, which is the public search page. A provider clicking
+    // "my profile" was shown a list of OTHER people. Every self-referential
+    // link in the provider surface must go to /provider/business.
+    const dashboard = readFileSync(join(PAGES, 'ProviderDashboardPage.tsx'), 'utf8');
+    const selfLinks = [...dashboard.matchAll(/to="(\/[^"]*)"/g)].map((m) => m[1]);
+
+    for (const href of selfLinks) {
+      assert.notEqual(
+        href,
+        '/providers',
+        `provider dashboard must not link to the public directory (${href})`,
+      );
+    }
+    assert.ok(
+      selfLinks.includes('/provider/business'),
+      'the provider must be able to reach their own profile and services',
+    );
+  });
+
+  it('routes the provider to their own business page, not the customer area', () => {
+    const dashboard = readFileSync(join(PAGES, 'ProviderDashboardPage.tsx'), 'utf8');
+    for (const href of [...dashboard.matchAll(/to="(\/[^"]*)"/g)].map((m) => m[1])) {
+      assert.ok(
+        href !== '/dashboard' && href !== '/bookings',
+        `a provider must not be sent to a customer route (${href})`,
+      );
+    }
+  });
+});

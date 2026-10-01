@@ -21,11 +21,43 @@ const phone = z.preprocess(
     .optional(),
 );
 
+/**
+ * Provider business details collected at sign-up.
+ *
+ * Every field is optional except `businessName` and `city`: a provider should
+ * be able to create an account in under a minute and then complete the rest of
+ * their profile from the dashboard via PATCH /api/providers/me, which already
+ * accepts the same fields. Registration is not the only chance to supply them.
+ *
+ * `serviceAreas` and `yearsExperience` are accepted here so the business can
+ * state its coverage and experience up front — both are surfaced to the admin
+ * on the verification screen. Nothing here sets a verification status: the
+ * INSERT omits `verification_status` so the column DEFAULT 'PENDING' applies
+ * (ADR-030). A new provider is never public.
+ */
 const providerDetails = z.object({
   businessName: z.string().trim().min(2, 'must be at least 2 characters').max(120),
   city: z.string().trim().min(2, 'must be at least 2 characters').max(80),
   description: z.string().trim().max(2000).optional(),
-  hourlyRate: z.coerce.number().positive().max(10_000).optional(),
+  /** Contact number for the business. Falls back to the account phone if absent. */
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9 ()-]{7,20}$/, 'must be a valid phone number')
+    .optional(),
+  /** Nearby towns the provider will travel to. */
+  serviceAreas: z
+    .array(z.string().trim().min(2).max(80))
+    .max(30, 'must be at most 30 service areas')
+    .optional(),
+  yearsExperience: z.coerce
+    .number()
+    .int('must be a whole number of years')
+    .min(0, 'must be at least 0')
+    .max(60, 'must be at most 60')
+    .optional(),
+  /** Indicative starting rate in rupees. Stored as a plain number, never a string. */
+  hourlyRate: z.coerce.number().positive().max(10_000_000).optional(),
 });
 
 export const registerSchema = z

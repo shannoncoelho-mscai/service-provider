@@ -1,4 +1,4 @@
-﻿import { ArrowLeft, Briefcase, CalendarDays, Mail, MapPin, Phone, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
+import { ArrowLeft, Briefcase, CalendarDays, Mail, MapPin, Phone, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -9,6 +9,7 @@ import {
   suspendProvider,
 } from '../lib/api';
 import { useAuth } from '../lib/auth-context';
+import { formatPrice } from '../lib/format';
 import {
   VERIFICATION_LABEL,
   adminProviderView,
@@ -255,6 +256,54 @@ export default function AdminProviderPage() {
               </p>
             </section>
           )}
+
+          <section className="card p-5">
+            <h2 className="text-sm font-semibold text-ink">
+              Services offered
+              <span className="ml-2 font-normal text-ink-soft">
+                {view.services.length} listed
+              </span>
+            </h2>
+            <p className="mt-1 text-xs text-ink-soft">
+              What the provider sells and at what price. Prices are in rupees.
+            </p>
+            {view.services.length === 0 ? (
+              <p className="mt-3 rounded-xl bg-canvas px-4 py-4 text-sm text-ink-soft">
+                No services listed yet. This provider cannot take bookings until they add at least
+                one, so you may wish to ask them to do so before approving.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-line">
+                {view.services.map((service) => (
+                  <li key={service.id} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm font-medium text-ink">
+                        {service.name}
+                        {!service.isActive && (
+                          <span className="ml-2 rounded-full bg-line px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                            Inactive
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm font-semibold text-brand-700">
+                        {formatPrice(service.priceFrom)}
+                        {service.priceTo && service.priceTo !== service.priceFrom
+                          ? ` – ${formatPrice(service.priceTo)}`
+                          : ''}
+                      </p>
+                    </div>
+                    <p className="mt-0.5 text-xs text-ink-soft">
+                      {service.categoryName}
+                      {service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}
+                    </p>
+                    {service.description && (
+                      <p className="mt-1 text-sm text-ink-soft">{service.description}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <section className="card p-5">
             <h2 className="text-sm font-semibold text-ink">Details for review</h2>

@@ -6,6 +6,7 @@ import type {
   CategoryOption,
   CreateBookingRequest,
   CreateReviewRequest,
+  CreateServiceInput,
   MyBookingsResponse,
   MyReview,
   MyReviewsResponse,
@@ -17,6 +18,7 @@ import type {
   ProviderSettableStatus,
   PublicProviderProfile,
   PublicService,
+  UpdateMyProviderInput,
 } from '../types';
 
 /**
@@ -90,6 +92,8 @@ export const api = {
     request<T>(path, { ...init, method: 'POST', body: JSON.stringify(data) }),
   patch: <T>(path: string, data: unknown, init?: RequestInit) =>
     request<T>(path, { ...init, method: 'PATCH', body: JSON.stringify(data) }),
+  delete: <T>(path: string, init?: RequestInit) =>
+    request<T>(path, { ...init, method: 'DELETE' }),
 };
 
 /**
@@ -257,10 +261,56 @@ export async function getMyProviderProfile(): Promise<ProviderProfile> {
 }
 
 /** GET /api/providers/me/services — the provider's own service list. */
-export async function listMyProviderServices(): Promise<PublicService[]> {
-  const data = await api.get<{ services: PublicService[] }>('/providers/me/services');
-  return data.services;
-}
+  export async function listMyProviderServices(): Promise<PublicService[]> {
+    const data = await api.get<{ services: PublicService[] }>('/providers/me/services');
+    return data.services;
+  }
+
+  /**
+   * PATCH /api/providers/me — update the signed-in provider's own business
+   * profile. The server scopes the UPDATE to `user_id = <session>`, so a
+   * userId sent here would simply be ignored; it is not part of the input type
+   * at all, and `verificationStatus` is deliberately absent because the schema
+   * is `.strict()` and only an ADMIN may change it.
+   */
+  export async function updateMyProviderProfile(
+    input: UpdateMyProviderInput,
+  ): Promise<ProviderProfile> {
+    const data = await api.patch<{ profile: ProviderProfile }>('/providers/me', input);
+    return data.profile;
+  }
+
+  /** POST /api/providers/me/services — add a service to the provider's catalogue. */
+  export async function createMyProviderService(input: CreateServiceInput): Promise<PublicService> {
+    const data = await api.post<{ service: PublicService }>('/providers/me/services', input);
+    return data.service;
+  }
+
+  /** PATCH /api/providers/me/services/:id — rename, reprice or re-describe. */
+  export async function updateMyProviderService(
+    id: string,
+    input: Partial<CreateServiceInput>,
+  ): Promise<PublicService> {
+    const data = await api.patch<{ service: PublicService }>(
+      `/providers/me/services/${id}`,
+      input,
+    );
+    return data.service;
+  }
+
+  /**
+   * DELETE /api/providers/me/services/:id — deactivates the service.
+   *
+   * It is a soft delete (`is_active = false`), which is why historical bookings
+   * keep resolving their service name. The server scopes the UPDATE to the
+   * session's own provider id, so another provider's service id is a 404.
+   */
+  export async function deleteMyProviderService(id: string): Promise<PublicService> {
+    const data = await api.delete<{ service: PublicService }>(
+      `/providers/me/services/${id}`,
+    );
+    return data.service;
+  }
 
 /* ==========================================================================
    Reviews (ADR-028)

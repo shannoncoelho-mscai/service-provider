@@ -28,7 +28,46 @@ export interface SignUpInput {
   fullName: string;
   phone?: string;
   role: Extract<Role, 'CUSTOMER' | 'PROVIDER'>;
-  provider?: { businessName: string; city: string };
+  /**
+   * Provider business details. Required when `role` is PROVIDER and rejected
+   * otherwise by the server's `registerSchema.superRefine`, so the UI must not
+   * send an empty object for a customer.
+   *
+   * Every field except businessName/city is optional: the provider can complete
+   * the rest from their dashboard with PATCH /api/providers/me.
+   */
+  provider?: {
+    businessName: string;
+    city: string;
+    description?: string;
+    phone?: string;
+    serviceAreas?: string[];
+    yearsExperience?: number;
+    /** Rupees, as a plain number. The ₹ symbol is display-only. */
+    hourlyRate?: number;
+  };
+}
+
+/**
+ * Where each role lands after signing in or registering (Phase 18).
+ *
+ * This is UX routing only — it reads the role the SERVER returned in the auth
+ * response, never a role the user picked in a form. A hand-edited request body
+ * can reach any page, and the server re-checks the role on every request
+ * regardless (ADR-015), so this table exists to avoid showing somebody a screen
+ * that could only fail.
+ */
+export function homeForRole(role: Role | null | undefined): string {
+  switch (role) {
+    case 'ADMIN':
+      return '/admin/dashboard';
+    case 'PROVIDER':
+      return '/provider/dashboard';
+    case 'CUSTOMER':
+      return '/dashboard';
+    default:
+      return '/';
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);

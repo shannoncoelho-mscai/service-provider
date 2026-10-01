@@ -95,15 +95,25 @@ export async function register(input: RegisterInput, userAgent: string | null): 
     userRow = inserted.rows[0];
 
     // Providers start PENDING — an admin must APPROVE them (never automatic).
+    // The INSERT deliberately OMITS verification_status so the column DEFAULT
+    // 'PENDING' applies: there is no code path that can set a new provider
+    // APPROVED at registration, whatever the client sends.
     if (input.role === 'PROVIDER' && input.provider) {
       await client.query(
-        `INSERT INTO provider_profiles (user_id, business_name, description, city, hourly_rate)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO provider_profiles
+           (user_id, business_name, description, phone, city, service_areas,
+            years_experience, hourly_rate)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           userRow.id,
           input.provider.businessName,
           input.provider.description ?? null,
+          // A business contact number is useful on the profile; fall back to the
+          // account's own phone so a provider who gave one is not asked twice.
+          input.provider.phone ?? input.phone ?? null,
           input.provider.city,
+          input.provider.serviceAreas ?? [],
+          input.provider.yearsExperience ?? 0,
           input.provider.hourlyRate ?? null,
         ],
       );
