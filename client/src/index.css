@@ -1,0 +1,261 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   ServiceConnect design system
+   Tailwind v4 — tokens live in @theme, so every value below also generates a
+   utility (bg-brand-600, font-display, shadow-lift, animate-fade-up, …).
+   Components consume tokens only; raw hex/px values are avoided in JSX.
+   ========================================================================== */
+
+@theme {
+  /* Brand — indigo/violet: trustworthy, calm, not "startup neon". */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  /* Accent — warm amber, used sparingly for ratings and highlights. */
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+
+  /* Surfaces — warmer than pure slate so cards feel less "dashboard grey". */
+  --color-canvas: #fbfaf9;
+  --color-surface: #ffffff;
+  --color-ink: #0f172a;
+  --color-ink-soft: #475569;
+  --color-line: #e7e5e4;
+
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+
+  --radius-4xl: 2rem;
+
+  /* Layered, soft shadows — depth without the heavy "material" look. */
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.04), 0 18px 40px -16px rgb(79 70 229 / 0.28);
+  --shadow-glow: 0 0 0 1px rgb(99 102 241 / 0.16), 0 24px 60px -24px rgb(79 70 229 / 0.45);
+
+  /* Motion — short, few, purposeful. */
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-float-slow: float-slow 14s ease-in-out infinite;
+  --animate-float-slower: float-slow 20s ease-in-out infinite reverse;
+  --animate-pop: pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes float-slow {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -22px, 0) scale(1.06);
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Visible, on-brand focus ring for keyboard users only. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+}
+
+@layer components {
+  /* Page shell — one definition, shared by every section. */
+  .shell {
+    width: 100%;
+    max-width: 72rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 1024px) {
+    .shell {
+      padding-inline: 2rem;
+    }
+  }
+
+  .card {
+    border-radius: 1rem;
+    border: 1px solid var(--color-line);
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Buttons ------------------------------------------------------------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn-primary {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-brand-600),
+      var(--color-brand-800)
+    );
+    color: #fff;
+    box-shadow: var(--shadow-lift);
+  }
+  .btn-primary:hover {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-brand-500),
+      var(--color-brand-700)
+    );
+  }
+
+  .btn-ghost {
+    border: 1px solid var(--color-line);
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-brand-200);
+    background-color: var(--color-brand-50);
+    color: var(--color-brand-800);
+  }
+
+  .btn-invert {
+    background-color: #fff;
+    color: var(--color-brand-800);
+  }
+  .btn-invert:hover {
+    background-color: var(--color-brand-50);
+  }
+
+  /* Eyebrow label above section headings. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-brand-100);
+    background-color: var(--color-brand-50);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-brand-700);
+  }
+}
+
+/* Decorative dot grid behind the hero. */
+@utility bg-dot-grid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgb(79 70 229 / 0.16) 1px,
+    transparent 0
+  );
+  background-size: 22px 22px;
+}
+
+/* Gradient text for the hero headline accent. */
+@utility text-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--color-brand-700),
+    var(--color-brand-500) 45%,
+    var(--color-accent-600)
+  );
+  background-clip: text;
+  color: transparent;
+}
+
+/* Respect the OS "reduce motion" setting: no transforms, no looping blobs. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+

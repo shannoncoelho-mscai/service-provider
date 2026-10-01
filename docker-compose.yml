@@ -1,0 +1,26 @@
+# Local development database for ServiceConnect.
+# Usage: docker compose up -d
+#
+# NOTE: credentials below are DEVELOPMENT-ONLY defaults that match
+# server/.env.example. Never reuse them in any shared or production environment.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: serviceconnect-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: serviceconnect
+      POSTGRES_PASSWORD: serviceconnect_dev
+      POSTGRES_DB: serviceconnect
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U serviceconnect -d serviceconnect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
