@@ -43,7 +43,7 @@ largest remaining production gap — see [`docs/SECURITY.md`](docs/SECURITY.md).
 ## Quick start
 
 ```bash
-git clone <your-repo-url> serviceconnect
+git clone https://github.com/shannoncoelho-mscai/service-provider.git serviceconnect
 cd serviceconnect
 
 npm install                                     # installs both workspaces
@@ -186,7 +186,7 @@ token.
 | `GET` | `/health` | Liveness probe |
 | `GET` | `/providers` | Search verified providers — filters, sort, pagination |
 | `GET` | `/providers/categories` | Category list with provider counts |
-| `GET` | `/providers/:id` | Public profile — APPROVED only. Gallery, services, price range, rating, anonymous reviews. Unapproved or unknown id → 404 |
+| `GET` | `/providers/:id` | Public profile — APPROVED only. Gallery, services, price range, rating, anonymous reviews. Unapproved or unknown ID → 404 |
 
 ### Customer
 
