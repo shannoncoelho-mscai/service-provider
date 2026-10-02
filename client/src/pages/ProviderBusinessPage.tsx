@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   Briefcase,
   Clock,
   Loader2,
@@ -21,8 +22,9 @@ import {
 import { formatPrice } from '../lib/format';
 import type {
   CategoryOption,
+  CreateServiceInput,
   ProviderProfile,
-  PublicService,
+  ProviderService,
   UpdateMyProviderInput,
 } from '../types';
 import VerificationNotice from '../components/provider/VerificationNotice';
@@ -74,48 +76,72 @@ const SUGGESTED_AREAS = [
   'Vasco da Gama',
 ];
 
-/** A service form. Prices are rupees held as strings until submitted. */
+/**
+ * A service form. Prices are rupees held as strings until submitted.
+ *
+ * `categoryId` is set only when the provider PICKS an existing suggestion; the
+ * moment they type, it is cleared and `categoryInput` is sent as free text for
+ * the server to resolve. That keeps "pick one of ours" and "invent a new one"
+ * mutually exclusive without a mode switch.
+ */
 interface ServiceDraft {
   id: string | null;
   name: string;
   description: string;
+  /** The visible text in the category combobox. */
+  categoryInput: string;
+  /** '' when the text is a NEW category the server must resolve. */
   categoryId: string;
   priceFrom: string;
   priceTo: string;
   durationMinutes: string;
 }
 
-const blankService = (categoryId = ''): ServiceDraft => ({
+const blankService = (): ServiceDraft => ({
   id: null,
   name: '',
   description: '',
-  categoryId,
+  categoryInput: '',
+  categoryId: '',
   priceFrom: '',
   priceTo: '',
   durationMinutes: '',
 });
 
-function toDraft(service: PublicService, categories: CategoryOption[]): ServiceDraft {
-  const match = categories.find((c) => c.slug === service.category.slug);
+/**
+ * Edit an existing service.
+ *
+ * The owner's DTO already carries BOTH `categoryId` and `categoryName`, so no
+ * slug-to-id lookup is needed here — the previous version had to search the
+ * category list for a matching slug, which silently failed for a category not
+ * present in that list.
+ */
+function toDraft(service: ProviderService): ServiceDraft {
   return {
     id: service.id,
     name: service.name,
     description: service.description ?? '',
-    // The API knows only the category SLUG; resolve it to the uuid the write
-    // endpoints require. A service whose category has vanished leaves the
-    // select on its placeholder and the provider re-picks it when editing.
-    categoryId: match?.id ?? '',
+    categoryInput: service.categoryName,
+    categoryId: service.categoryId,
     priceFrom: service.priceFrom,
     priceTo: service.priceTo ?? '',
     durationMinutes: service.durationMinutes ? String(service.durationMinutes) : '',
   };
 }
 
-/** Validate a service draft against the server's own rules, before sending. */
+/**
+ * Validate a service draft against the server's own rules, before sending.
+ *
+ * The category check mirrors the schema's "exactly one selector" rule: either a
+ * picked id, or non-empty free text. Note the trim — the server collapses
+ * whitespace and slugs the name, so "  " is not a category.
+ */
 function validateService(draft: ServiceDraft): string | null {
   if (!draft.name.trim()) return 'Enter a service name.';
   if (draft.name.trim().length < 3) return 'The name must be at least 3 characters.';
-  if (!draft.categoryId) return 'Choose a category.';
+  if (!draft.categoryId && !draft.categoryInput.trim()) {
+    return 'Choose a category or type a new one.';
+  }
 
   const from = Number(draft.priceFrom);
   if (draft.priceFrom.trim() === '' || !Number.isFinite(from) || from < 0) {
@@ -147,6 +173,20 @@ function ServiceFields({
   busy: boolean;
   onChange: (patch: Partial<ServiceDraft>) => void;
 }) {
+  // Filter the existing categories by what has been typed so far. Matching is
+  // case-insensitive on both name and slug, so "plumb" finds "Plumbing". An
+  // EMPTY box shows everything rather than nothing, so the provider can browse
+  // the list without typing first.
+  const term = draft.categoryInput.trim().toLowerCase();
+  const suggestions = categories
+    .filter(
+      (category) =>
+        term === '' ||
+        category.name.toLowerCase().includes(term) ||
+        category.slug.includes(term),
+    )
+    .slice(0, 8);
+
   return (
     <>
       <Field id="service-name" label="Service name" required>
@@ -164,25 +204,83 @@ function ServiceFields({
         )}
       </Field>
 
-      <Field id="service-category" label="Category" required>
-        {(field) => (
-          <select
-            {...field}
-            required
-            disabled={busy}
-            value={draft.categoryId}
-            onChange={(e) => onChange({ categoryId: e.target.value })}
-            className={`${inputClass} mt-1.5`}
+      {/*
+        Category combobox: free text with suggestions.
+
+        A provider must be able to invent a category ("Pest Control",
+        "CCTV Installation") that does not exist yet, so a <select> is the wrong
+        control — it can only offer what is already there. Typing filters the
+        suggestions; clicking one pins its id. Typing anything else leaves
+        `categoryId` empty and the server resolves the free text into a real
+        category row (ADR-031).
+      */}
+      <div>
+        <label htmlFor="service-category" className="block text-sm font-semibold text-ink">
+          Category <span className="text-red-500">*</span>
+        </label>
+        <p className="mt-0.5 text-xs text-ink-soft">
+          Pick one of the suggestions, or type your own — a new category is created
+          automatically.
+        </p>
+        <input
+          id="service-category"
+          type="text"
+          required
+          role="combobox"
+          aria-expanded={suggestions.length > 0}
+          aria-autocomplete="list"
+          aria-controls="service-category-suggestions"
+          autoComplete="off"
+          disabled={busy}
+          value={draft.categoryInput}
+          onChange={(e) =>
+            // Any edit clears the pinned id: the text is now the source of truth
+            // and may no longer describe the category that was picked.
+            onChange({ categoryInput: e.target.value, categoryId: '' })
+          }
+          placeholder="e.g. Plumbing, or Pest Control"
+          className={`${inputClass} mt-1.5`}
+        />
+
+        {suggestions.length > 0 && (
+          <ul
+            id="service-category-suggestions"
+            role="listbox"
+            aria-label="Category suggestions"
+            className="mt-1.5 max-h-44 overflow-y-auto rounded-xl border border-line bg-white shadow-soft"
           >
-            <option value="">Choose a category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+            {suggestions.map((category) => (
+              <li key={category.id} role="none">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={draft.categoryId === category.id}
+                  disabled={busy}
+                  onClick={() =>
+                    onChange({ categoryInput: category.name, categoryId: category.id })
+                  }
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-brand-50"
+                >
+                  <span>{category.name}</span>
+                  {draft.categoryId === category.id && (
+                    <BadgeCheck className="h-4 w-4 shrink-0 text-brand-600" aria-hidden="true" />
+                  )}
+                </button>
+              </li>
             ))}
-          </select>
+          </ul>
         )}
-      </Field>
+
+        {/* Says plainly which of the two will be sent, so the provider is never
+            guessing about a hidden id. */}
+        <p className="mt-1.5 text-xs text-ink-soft">
+          {draft.categoryId
+            ? 'Using an existing category.'
+            : draft.categoryInput.trim()
+              ? `Will create the category "${draft.categoryInput.trim()}".`
+              : 'Suggestions appear as you type.'}
+        </p>
+      </div>
 
       <Field
         id="service-price-from"
@@ -269,6 +367,83 @@ function ServiceFields({
 }
 
 /**
+ * One row of the provider's own service list.
+ *
+ * EXPORTED (rather than inlined in the page's `.map`) so the crash that whited
+ * out /provider/business is directly renderable in a test. `service.categoryName`
+ * is flat because the OWNER endpoints return it flat — see `ProviderService`.
+ * Rendering `service.category.name` here is what threw "Cannot read properties
+ * of undefined (reading 'name')".
+ */
+export function ProviderServiceRow({
+  service,
+  busy,
+  onEdit,
+  onRemove,
+}: {
+  service: ProviderService;
+  busy: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="rounded-2xl border border-line p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-ink">{service.name}</p>
+          <p className="mt-0.5 text-xs text-ink-soft">{service.categoryName}</p>
+          {!service.isActive && (
+            <p className="mt-1 text-xs font-semibold text-amber-600">
+              Inactive — customers cannot book this service
+            </p>
+          )}
+          {service.description && (
+            <p className="mt-1.5 text-sm text-ink-soft">{service.description}</p>
+          )}
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="font-semibold text-brand-700">
+              {formatPrice(service.priceFrom)}
+              {service.priceTo && service.priceTo !== service.priceFrom
+                ? ` – ${formatPrice(service.priceTo)}`
+                : ''}
+            </span>
+            {service.durationMinutes && (
+              <span className="inline-flex items-center gap-1 text-ink-soft">
+                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                {service.durationMinutes} min
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={`Edit ${service.name}`}
+            className="btn btn-ghost p-2"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={busy}
+            aria-label={`Remove ${service.name}`}
+            className="btn btn-ghost p-2 text-red-600 disabled:opacity-50"
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
  * "My business" — the provider's own profile and service catalogue (Phase 18).
  *
  * This exposes endpoints that already existed (`PATCH /providers/me` and the
@@ -280,7 +455,7 @@ function ServiceFields({
  */
 export default function ProviderBusinessPage() {
   const [state, setState] = useState<State>({ status: 'loading' });
-  const [services, setServices] = useState<PublicService[]>([]);
+  const [services, setServices] = useState<ProviderService[]>([]);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
 
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
@@ -377,8 +552,13 @@ export default function ProviderBusinessPage() {
 
     setSavingService(true);
     setServiceError(null);
-    const payload = {
-      categoryId: editing.categoryId,
+    // Exactly ONE category selector is sent. A picked suggestion goes across as
+    // its id; typed text goes across as `categoryName` for the server to resolve
+    // into a real category. Sending both is rejected by the schema as ambiguous.
+    const payload: CreateServiceInput = {
+      ...(editing.categoryId
+        ? { categoryId: editing.categoryId }
+        : { categoryName: editing.categoryInput.trim() }),
       name: editing.name.trim(),
       description: editing.description.trim() || null,
       priceFrom: Number(editing.priceFrom),
@@ -406,7 +586,7 @@ export default function ProviderBusinessPage() {
     }
   }
 
-  async function removeService(service: PublicService) {
+  async function removeService(service: ProviderService) {
     if (removingId) return;
     setRemovingId(service.id);
     setServiceError(null);
@@ -744,7 +924,7 @@ export default function ProviderBusinessPage() {
             <button
               type="button"
               onClick={() => {
-                setEditing(blankService(categories[0]?.id ?? ''));
+                setEditing(blankService());
                 setServiceError(null);
               }}
               className="btn btn-primary mt-4 w-full px-4 py-2.5 text-sm"
@@ -761,57 +941,16 @@ export default function ProviderBusinessPage() {
           ) : (
             <ul className="mt-5 space-y-3">
               {services.map((service) => (
-                <li key={service.id} className="rounded-2xl border border-line p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink">{service.name}</p>
-                      <p className="mt-0.5 text-xs text-ink-soft">{service.category.name}</p>
-                      {service.description && (
-                        <p className="mt-1.5 text-sm text-ink-soft">{service.description}</p>
-                      )}
-                      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                        <span className="font-semibold text-brand-700">
-                          {formatPrice(service.priceFrom)}
-                          {service.priceTo && service.priceTo !== service.priceFrom
-                            ? ` – ${formatPrice(service.priceTo)}`
-                            : ''}
-                        </span>
-                        {service.durationMinutes && (
-                          <span className="inline-flex items-center gap-1 text-ink-soft">
-                            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                            {service.durationMinutes} min
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(toDraft(service, categories));
-                          setServiceError(null);
-                        }}
-                        aria-label={`Edit ${service.name}`}
-                        className="btn btn-ghost p-2"
-                      >
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void removeService(service)}
-                        disabled={removingId === service.id}
-                        aria-label={`Remove ${service.name}`}
-                        className="btn btn-ghost p-2 text-red-600 disabled:opacity-50"
-                      >
-                        {removingId === service.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </li>
+                <ProviderServiceRow
+                  key={service.id}
+                  service={service}
+                  busy={removingId === service.id}
+                  onEdit={() => {
+                    setEditing(toDraft(service));
+                    setServiceError(null);
+                  }}
+                  onRemove={() => void removeService(service)}
+                />
               ))}
             </ul>
           )}

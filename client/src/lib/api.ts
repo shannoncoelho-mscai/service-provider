@@ -15,9 +15,10 @@ import type {
   ProviderBookingsResponse,
   ProviderProfile,
   ProviderSearchResponse,
+  ProviderService,
   ProviderSettableStatus,
   PublicProviderProfile,
-  PublicService,
+
   UpdateMyProviderInput,
 } from '../types';
 
@@ -254,15 +255,44 @@ export async function updateProviderBookingStatus(
   return data.booking;
 }
 
-/** GET /api/providers/me — the signed-in provider's own profile. */
+/**
+ * The exact shape of `GET /api/providers/me`.
+ *
+ * The handler sends `getMyProfile()`'s result straight through, and that
+ * function returns `{ profile, user }` — note it is `profile`, NOT `provider`.
+ * The two `/me` endpoints disagree with each other: PATCH wraps its result in
+ * `{ profile }` while the public `GET /:id` wraps in `{ provider }`. Reading
+ * the wrong key here returned `undefined` and blew up the provider dashboard
+ * with "Cannot read properties of undefined (reading 'verificationStatus')",
+ * so the wrapper key is spelled out rather than asserted inline.
+ */
+interface MyProviderProfileResponse {
+  profile: ProviderProfile;
+  /** The owning account, returned alongside the profile for convenience. */
+  user: { fullName: string; email: string };
+}
+
+/**
+ * GET /api/providers/me — the signed-in provider's own profile.
+ *
+ * Unwraps defensively: a payload without a usable `profile` throws instead of
+ * returning `undefined`. A malformed response is a contract violation, and
+ * failing loudly here lets the caller's existing error state render a retry,
+ * rather than propagating `undefined` into a render where it would crash the
+ * whole page.
+ */
 export async function getMyProviderProfile(): Promise<ProviderProfile> {
-  const data = await api.get<{ provider: ProviderProfile }>('/providers/me');
-  return data.provider;
+  const data = await api.get<MyProviderProfileResponse>('/providers/me');
+  const profile = data?.profile;
+  if (!profile || typeof profile !== 'object') {
+    throw new ApiError(500, 'The provider profile could not be read.');
+  }
+  return profile;
 }
 
 /** GET /api/providers/me/services — the provider's own service list. */
-  export async function listMyProviderServices(): Promise<PublicService[]> {
-    const data = await api.get<{ services: PublicService[] }>('/providers/me/services');
+  export async function listMyProviderServices(): Promise<ProviderService[]> {
+    const data = await api.get<{ services: ProviderService[] }>('/providers/me/services');
     return data.services;
   }
 
@@ -281,8 +311,8 @@ export async function getMyProviderProfile(): Promise<ProviderProfile> {
   }
 
   /** POST /api/providers/me/services — add a service to the provider's catalogue. */
-  export async function createMyProviderService(input: CreateServiceInput): Promise<PublicService> {
-    const data = await api.post<{ service: PublicService }>('/providers/me/services', input);
+  export async function createMyProviderService(input: CreateServiceInput): Promise<ProviderService> {
+    const data = await api.post<{ service: ProviderService }>('/providers/me/services', input);
     return data.service;
   }
 
@@ -290,8 +320,8 @@ export async function getMyProviderProfile(): Promise<ProviderProfile> {
   export async function updateMyProviderService(
     id: string,
     input: Partial<CreateServiceInput>,
-  ): Promise<PublicService> {
-    const data = await api.patch<{ service: PublicService }>(
+  ): Promise<ProviderService> {
+    const data = await api.patch<{ service: ProviderService }>(
       `/providers/me/services/${id}`,
       input,
     );
@@ -305,8 +335,8 @@ export async function getMyProviderProfile(): Promise<ProviderProfile> {
    * keep resolving their service name. The server scopes the UPDATE to the
    * session's own provider id, so another provider's service id is a 404.
    */
-  export async function deleteMyProviderService(id: string): Promise<PublicService> {
-    const data = await api.delete<{ service: PublicService }>(
+  export async function deleteMyProviderService(id: string): Promise<ProviderService> {
+    const data = await api.delete<{ service: ProviderService }>(
       `/providers/me/services/${id}`,
     );
     return data.service;

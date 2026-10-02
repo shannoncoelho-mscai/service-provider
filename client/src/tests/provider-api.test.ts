@@ -120,12 +120,65 @@ describe('listProviderBookings', () => {
 });
 
 describe('getMyProviderProfile', () => {
-  it('GETs /providers/me and exposes the verification status', async () => {
-    stubFetch(200, { provider: PROFILE });
+  /**
+   * The response wrapper for `GET /api/providers/me` is `{ profile, user }` —
+   * see `providers.service.ts#getMyProfile`, which the route sends verbatim.
+   * The public `GET /api/providers/:id` uses `{ provider }`, a different key.
+   *
+   * This fixture previously stubbed `{ provider: PROFILE }`, mirroring the
+   * client's own wrong assumption, so it passed while the real app returned
+   * `undefined` and the provider dashboard crashed on render. Stubs must copy
+   * the SERVER's shape, not the client's expectation of it.
+   */
+  const meResponse = () => ({
+    profile: PROFILE,
+    user: { fullName: 'Rajesh Naik', email: 'contact@ganpatiacqua.example.com' },
+  });
+
+  it('GETs /providers/me and unwraps the "profile" key', async () => {
+    stubFetch(200, meResponse());
     const profile = await getMyProviderProfile();
+
     assert.equal(calls[0].url, '/api/providers/me');
+    assert.equal(calls[0].method, 'GET');
     assert.equal(profile.verificationStatus, 'APPROVED');
     assert.equal(profile.isPublic, true);
+    assert.equal(profile.businessName, 'Acme Plumbing');
+  });
+
+  it('REGRESSION: reads "profile", not "provider" (the key that crashed the dashboard)', async () => {
+    stubFetch(200, meResponse());
+    const profile = await getMyProviderProfile();
+
+    // With the old `data.provider` accessor this was `undefined`, and the
+    // dashboard then threw on `profile.verificationStatus`.
+    assert.notEqual(profile, undefined, 'the accessor must not return undefined');
+    assert.ok(!('provider' in profile), 'the profile must be unwrapped, not the wrapper');
+    assert.equal(typeof profile.verificationStatus, 'string');
+  });
+
+  it('surfaces every verification status the server can return', async () => {
+    for (const status of ['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] as const) {
+      stubFetch(200, { ...meResponse(), profile: { ...PROFILE, verificationStatus: status } });
+      const profile = await getMyProviderProfile();
+      assert.equal(profile.verificationStatus, status);
+    }
+  });
+
+  it('throws instead of returning undefined for a malformed payload', async () => {
+    // A contract violation must become a catchable error so the caller renders
+    // its error state, never `undefined` flowing into a render.
+    for (const body of [{}, { profile: null }, { provider: PROFILE }, null]) {
+      stubFetch(200, body);
+      await assert.rejects(
+        () => getMyProviderProfile(),
+        (error: unknown) => {
+          assert.ok(error instanceof ApiError);
+          return true;
+        },
+        `payload ${JSON.stringify(body)} must not resolve to undefined`,
+      );
+    }
   });
 });
 

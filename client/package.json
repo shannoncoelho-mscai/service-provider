@@ -8,7 +8,7 @@
                     "build":  "tsc --noEmit \u0026\u0026 vite build",
                     "preview":  "vite preview",
                     "typecheck":  "tsc --noEmit",
-                    "test":  "tsx --test --test-concurrency=1 src/tests/currency.test.ts src/tests/booking.test.tsx src/tests/booking-api.test.ts src/tests/dashboard.test.tsx src/tests/provider-api.test.ts src/tests/provider-dashboard.test.tsx src/tests/admin-api.test.ts src/tests/admin-dashboard.test.tsx src/tests/reviews.test.tsx src/tests/reviews-api.test.ts src/tests/notifications.test.tsx src/tests/notifications-api.test.ts src/tests/audit.test.tsx"
+                    "test":  "tsx --test --test-concurrency=1 src/tests/currency.test.ts src/tests/provider-business.test.tsx src/tests/booking.test.tsx src/tests/booking-api.test.ts src/tests/dashboard.test.tsx src/tests/provider-api.test.ts src/tests/provider-dashboard.test.tsx src/tests/admin-api.test.ts src/tests/admin-dashboard.test.tsx src/tests/reviews.test.tsx src/tests/reviews-api.test.ts src/tests/notifications.test.tsx src/tests/notifications-api.test.ts src/tests/audit.test.tsx"
                 },
     "dependencies":  {
                          "lucide-react":  "^1.49.0",

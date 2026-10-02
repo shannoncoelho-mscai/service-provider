@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import { app } from '../app';
 import { pool } from '../config/database';
 import { hashPassword } from '../lib/password';
+import { categorySlug } from '../modules/providers/services.service';
 
 /**
  * Provider service-management tests (ADR-020).
@@ -362,3 +363,219 @@ test('rule 7: non-providers and anonymous callers are rejected first', async () 
   assert.equal((await dbRow(serviceA)).provider_id, providerAId);
 });
 
+
+/* ==========================================================================
+   Phase 19 — custom categories (ADR-031)
+   A provider may type a category that does not exist yet. The server must
+   resolve it to a real `service_categories` row — the client never mints an id.
+   ========================================================================== */
+
+test('custom category: a typed name is created server-side and attached', async () => {
+  const name = `CCTV Installation ${runId}`;
+  const res = await call(
+    'POST',
+    API,
+    { categoryName: name, name: 'Camera setup', priceFrom: 2500 },
+    tokenA,
+  );
+  assert.equal(res.status, 201);
+  // The response echoes the resolved, real category — not the raw text.
+  assert.equal(res.data.service.categoryName, name);
+  assert.ok(res.data.service.categoryId, 'a real category id must come back');
+  assert.equal(res.data.service.categorySlug, categorySlug(name));
+
+  const row = await pool.query('SELECT category_id FROM services WHERE id = $1', [
+    res.data.service.id,
+  ]);
+  assert.equal(row.rows[0].category_id, res.data.service.categoryId);
+});
+
+test('custom category: typing a name never writes text into category_id', async () => {
+  const res = await call(
+    'POST',
+    API,
+    { categoryName: 'Solar Panel Maintenance', name: 'Panel clean', priceFrom: 1500 },
+    tokenA,
+  );
+  assert.equal(res.status, 201);
+  const okUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  assert.match(res.data.service.categoryId, okUuid, 'category_id must remain a UUID');
+});
+
+test('custom category: case and whitespace differences do NOT duplicate', async () => {
+  const base = `Water Purifier Service ${runId}`;
+  const first = await call(
+    'POST',
+    API,
+    { categoryName: base, name: 'Filter change A', priceFrom: 900 },
+    tokenA,
+  );
+  assert.equal(first.status, 201);
+
+  // Same name, different case + padding + internal spacing.
+  const messy = `  ${base.toUpperCase().replace(/ /g, '   ')}  `;
+  const second = await call(
+    'POST',
+    API,
+    { categoryName: messy, name: 'Filter change B', priceFrom: 900 },
+    tokenB,
+  );
+  assert.equal(second.status, 201);
+
+  assert.equal(
+    second.data.service.categoryId,
+    first.data.service.categoryId,
+    'a differently-cased/padded name must resolve to the same category row',
+  );
+
+  const rows = await pool.query('SELECT count(*)::int AS n FROM service_categories WHERE slug = $1', [
+    categorySlug(base),
+  ]);
+  assert.equal(rows.rows[0].n, 1, 'exactly one category row must exist for that slug');
+});
+
+test('custom category: the seeded categories are reused, not duplicated', async () => {
+  // "Plumbing" already exists with slug `plumbing`.
+  const res = await call(
+    'POST',
+    API,
+    { categoryName: '  PLUMBING  ', name: 'Leak trace', priceFrom: 1200 },
+    tokenA,
+  );
+  assert.equal(res.status, 201);
+  assert.equal(res.data.service.categorySlug, 'plumbing');
+
+  const seeded = await pool.query(
+    `SELECT count(*)::int AS n FROM service_categories
+      WHERE slug = 'plumbing' AND name = 'Plumbing'`,
+  );
+  assert.equal(seeded.rows[0].n, 1, 'the curated category must not be duplicated');
+});
+
+test('custom category: a new name sorts AFTER the curated categories', async () => {
+  const name = `Laptop Repair ${runId}`;
+  await call('POST', API, { categoryName: name, name: 'Screen fix', priceFrom: 800 }, tokenA);
+  const res = await call('GET', '/api/providers/categories');
+  assert.equal(res.status, 200);
+  const names: string[] = res.data.categories.map((c: any) => c.name);
+  assert.ok(names.includes(name), 'a provider-created category is usable immediately');
+  assert.ok(
+    names.indexOf('Plumbing') < names.indexOf(name),
+    'curated categories must stay ahead of provider-created ones',
+  );
+});
+
+test('category selectors: exactly one of categoryId / categoryName is required', async () => {
+  const neither = await call('POST', API, { name: 'No category', priceFrom: 100 }, tokenA);
+  assert.equal(neither.status, 400, 'neither selector must be a 400');
+
+  const both = await call(
+    'POST',
+    API,
+    { categoryId, categoryName: 'Ambiguous', name: 'Both', priceFrom: 100 },
+    tokenA,
+  );
+  assert.equal(both.status, 400, 'both selectors is ambiguous and must be a 400');
+});
+
+test('category selectors: an unknown categoryId is still rejected', async () => {
+  const res = await call(
+    'POST',
+    API,
+    {
+      categoryId: '00000000-0000-4000-8000-999999999999',
+      name: 'Ghost category',
+      priceFrom: 100,
+    },
+    tokenA,
+  );
+  assert.equal(res.status, 400);
+});
+
+test('category selectors: a name with no usable characters is a 400', async () => {
+  const res = await call('POST', API, { categoryName: '!!!', name: 'Nonsense', priceFrom: 100 }, tokenA);
+  assert.equal(res.status, 400);
+});
+
+test('custom category: PATCH moves a service to a newly typed category', async () => {
+  const created = await call(
+    'POST',
+    API,
+    { categoryName: 'Pest Control', name: `Spray job ${runId}`, priceFrom: 1200 },
+    tokenA,
+  );
+  assert.equal(created.status, 201);
+
+  const moved = await call(
+    'PATCH',
+    `${API}/${created.data.service.id}`,
+    { categoryName: `AC Installation ${runId}` },
+    tokenA,
+  );
+  assert.equal(moved.status, 200);
+  assert.equal(moved.data.service.categoryName, `AC Installation ${runId}`);
+  assert.notEqual(moved.data.service.categoryId, created.data.service.categoryId);
+});
+
+test('OWNERSHIP: a provider cannot move a service owned by somebody else', async () => {
+  const mine = await call(
+    'POST',
+    API,
+    { categoryName: 'Wedding Decoration', name: `Own service ${runId}`, priceFrom: 5000 },
+    tokenA,
+  );
+  assert.equal(mine.status, 201);
+
+  // Provider B tries to re-point provider A's service at a category it names.
+  const hijack = await call(
+    'PATCH',
+    `${API}/${mine.data.service.id}`,
+    { categoryName: 'Hijacked Category' },
+    tokenB,
+  );
+  assert.equal(hijack.status, 404, 'a service owned by somebody else is a 404');
+
+  // …and the hijack must not have created a category either.
+  const leaked = await pool.query(
+    'SELECT count(*)::int AS n FROM service_categories WHERE name = $1',
+    ['Hijacked Category'],
+  );
+  assert.equal(leaked.rows[0].n, 0, 'a rejected write must not create a category');
+});
+
+test('OWNERSHIP: a provider cannot delete a service owned by somebody else', async () => {
+  const mine = await call(
+    'POST',
+    API,
+    { categoryId, name: `Delete guard ${runId}`, priceFrom: 300 },
+    tokenA,
+  );
+  assert.equal(mine.status, 201);
+
+  const res = await call('DELETE', `${API}/${mine.data.service.id}`, undefined, tokenB);
+  assert.equal(res.status, 404);
+  const row = await dbRow(mine.data.service.id);
+  assert.equal(row.is_active, true, 'the service must still be active');
+});
+
+test('APPROVAL: creating a service never makes a PENDING provider public', async () => {
+  const fresh = await registerProvider(`svc-pending-${runId}@example.com`, 'Pending Pat', 'Pending Biz');
+  const profile = await call('GET', '/api/providers/me', undefined, fresh.token);
+  assert.equal(profile.data.profile.verificationStatus, 'PENDING');
+
+  const created = await call(
+    'POST',
+    API,
+    { categoryName: 'Glasswork', name: `Window fix ${runId}`, priceFrom: 900 },
+    fresh.token,
+  );
+  assert.equal(created.status, 201, 'a PENDING provider may prepare their catalogue');
+
+  // Still not public: the public profile endpoint reads through
+  // public_providers, which only contains APPROVED providers.
+  const pub = await call('GET', `/api/providers/${fresh.id}`);
+  assert.equal(pub.status, 404, 'a PENDING provider must stay invisible publicly');
+
+  const stillPending = await call('GET', '/api/providers/me', undefined, fresh.token);
+  assert.equal(stillPending.data.profile.verificationStatus, 'PENDING');
+});

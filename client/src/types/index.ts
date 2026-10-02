@@ -345,15 +345,44 @@ export interface UpdateMyProviderInput {
 }
 
 /**
+ * A service on the provider's OWN catalogue — `GET/POST/PATCH/DELETE
+ * /api/providers/me/services`.
+ *
+ * DELIBERATELY NOT `PublicService`. The two endpoints return different shapes:
+ * the public profile nests the category (`category: { slug, name }`, because a
+ * customer never needs the category id), while the owner's endpoints return the
+ * CATEGORY COLUMNS FLAT alongside `isActive` and `priceType`. Typing this as
+ * `PublicService` made the dashboard read `service.category.name` off a flat
+ * object and crash on `.name` of undefined — so the owner's shape is its own
+ * type, mirroring `ServiceDto` in services.service.ts.
+ */
+export interface ProviderService {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  categorySlug: string;
+  name: string;
+  description: string | null;
+  priceFrom: string;
+  priceTo: string | null;
+  priceType: 'FIXED' | 'HOURLY';
+  durationMinutes: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * POST /api/providers/me/services — the provider's own service catalogue.
  *
- * `categoryId` is a UUID chosen from the category list, NOT a client-supplied
- * provider id: the owning provider is always taken from the verified session
- * server-side. Prices are plain numbers in rupees; the ₹ symbol is added only
- * when they are displayed.
+ * `categoryId` selects an EXISTING category; `categoryName` types a NEW one
+ * that the server resolves into (or creates) a real category row. Exactly one
+ * is required on create, and at most one may be sent. Free text is never
+ * written into `category_id`.
  */
 export interface CreateServiceInput {
-  categoryId: string;
+  categoryId?: string;
+  categoryName?: string;
   name: string;
   description?: string | null;
   priceFrom: number;

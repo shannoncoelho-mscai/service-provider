@@ -80,9 +80,17 @@ function toDto(row: ServiceRow): ServiceDto {
   };
 }
 
-/** Whitelist for dynamic PATCH updates — `provider_id` is NOT in it. */
+/**
+ * Whitelist for dynamic PATCH updates — `provider_id` is NOT in it.
+ *
+ * `categoryName` is deliberately absent: it is not a column on `services`. It
+ * exists on the input only so `resolveCategoryId` can turn free text into a
+ * real `category_id` BEFORE this loop runs. Keeping it out of the map means the
+ * generic whitelist can never accidentally write it to SQL.
+ */
 const WRITABLE_COLUMNS: Record<keyof UpdateServiceInput, string> = {
   categoryId: 'category_id',
+  categoryName: '', // never used as a column; see the comment above
   name: 'name',
   description: 'description',
   priceFrom: 'price_from',
@@ -92,13 +100,122 @@ const WRITABLE_COLUMNS: Record<keyof UpdateServiceInput, string> = {
 };
 
 
+/**
+ * Custom categories created by a provider are sorted AFTER the curated seed
+ * ones so a provider cannot push the established categories down the list with a
+ * flood of near-duplicate names.
+ */
+const CUSTOM_CATEGORY_SORT_ORDER = 1000;
+
+/**
+ * Normalises a free-text category into a slug.
+ *
+ * This is the de-duplication key. "CCTV Installation", "cctv installation" and
+ * "  CCTV   Installation  " all produce `cctv-installation`, so they resolve to
+ * ONE `service_categories` row instead of three that differ only by case and
+ * whitespace. The result always satisfies the table's own CHECK
+ * (`slug = lower(slug) AND slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`).
+ *
+ * Returns '' when the input has no usable characters (e.g. "!!!"), which the
+ * caller turns into a 400.
+ */
+export function categorySlug(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Collapse internal whitespace runs: "CCTV   Installation" -> "CCTV Installation". */
+function normalizeCategoryName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Resolve free-text category input to a real `service_categories.id`,
+ * creating the row if it does not exist yet.
+ *
+ * WHY THIS IS SERVER-SIDE: the client may suggest names but must never mint a
+ * category id. `services.category_id` is a UUID FK with ON DELETE RESTRICT, and
+ * the slug UNIQUE index is the only thing that can arbitrate two providers
+ * creating "Pest Control" at the same instant. Trusting a client-generated id
+ * would let a provider attach a service to an arbitrary category row.
+ */
+async function findOrCreateCategory(rawName: string): Promise<string> {
+  const name = normalizeCategoryName(rawName);
+  const slug = categorySlug(name);
+  if (!slug) {
+    throw new HttpError(400, 'Invalid request — the category name has no usable characters');
+  }
+
+  const existing = await pool.query<{ id: string; is_active: boolean }>(
+    'SELECT id, is_active FROM service_categories WHERE slug = $1',
+    [slug],
+  );
+  if (existing.rowCount) {
+    // Reuse the row someone already created rather than making a near-duplicate.
+    if (!existing.rows[0].is_active) {
+      throw new HttpError(400, 'Invalid request — that category is no longer available');
+    }
+    return existing.rows[0].id;
+  }
+
+  try {
+    const created = await pool.query<{ id: string }>(
+      `INSERT INTO service_categories (name, slug, description, sort_order)
+        VALUES ($1, $2, NULL, $3)
+        RETURNING id`,
+      [name, slug, CUSTOM_CATEGORY_SORT_ORDER],
+    );
+    return created.rows[0].id;
+  } catch (err) {
+    // Lost a race: another provider inserted the same slug a moment ago. The
+    // UNIQUE index is the arbiter, so re-read and use THEIR row. This is the
+    // only path where a create can legitimately fail and still succeed.
+    if (isPgCode(err, PG.UNIQUE_VIOLATION)) {
+      const raced = await pool.query<{ id: string }>(
+        'SELECT id FROM service_categories WHERE slug = $1',
+        [slug],
+      );
+      if (raced.rowCount) return raced.rows[0].id;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Resolve whichever category selector the client used into a usable id.
+ *
+ * Returns undefined when neither field was sent (valid on update — it means
+ * "leave the category alone"). `assertCategoryUsable` still gates an explicit
+ * id, so a client cannot point a service at a deactivated category.
+ */
+async function resolveCategoryId(input: {
+  categoryId?: string;
+  categoryName?: string;
+}): Promise<string | undefined> {
+  if (input.categoryId !== undefined) {
+    await assertCategoryUsable(input.categoryId);
+    return input.categoryId;
+  }
+  if (input.categoryName !== undefined) {
+    return findOrCreateCategory(input.categoryName);
+  }
+  return undefined;
+}
+
 /** POST /api/providers/me/services */
 export async function createService(
   providerId: string,
   input: CreateServiceInput,
 ): Promise<ServiceDto> {
-  // Referencing a disabled/removed category is a client error, not a 500.
-  await assertCategoryUsable(input.categoryId);
+  // Exactly one selector is guaranteed by the schema. Resolving BEFORE the
+  // insert means the service row only ever receives a real, active category id.
+  const categoryId = await resolveCategoryId(input);
+  if (!categoryId) {
+    throw new HttpError(400, 'Invalid request — a category is required');
+  }
 
   try {
     const res = await pool.query<{ id: string }>(
@@ -109,7 +226,7 @@ export async function createService(
        RETURNING id`,
       [
         providerId, // ← from the token, never the body
-        input.categoryId,
+        categoryId,
         input.name,
         input.description ?? null,
         input.priceFrom,
@@ -134,9 +251,13 @@ export async function updateService(
   // stored price so a partial update (priceTo only) can be range-checked.
   const current = await loadOwnedService(providerId, serviceId);
 
-  if (input.categoryId && input.categoryId !== current.categoryId) {
-    await assertCategoryUsable(input.categoryId);
-  }
+  // Resolve a NEW category if one was sent. `categoryId` is validated as a
+  // lookup only — ownership of the service is already proven by the read above
+  // and re-asserted by the UPDATE's own `AND provider_id = $n` predicate.
+  const nextCategoryId =
+    input.categoryId !== undefined || input.categoryName !== undefined
+      ? await resolveCategoryId(input)
+      : undefined;
 
   const nextFrom = input.priceFrom ?? Number(current.priceFrom);
   const nextTo = input.priceTo === undefined ? current.priceTo : input.priceTo;
@@ -146,11 +267,30 @@ export async function updateService(
 
   const sets: string[] = [];
   const values: unknown[] = [];
+
+  // A typed `categoryName` is NOT a column: it has already been resolved into a
+  // real `category_id` by `resolveCategoryId`. Push that id here so a PATCH that
+  // only carries free text still produces a valid SET clause — without this,
+  // `sets` would be empty and the UPDATE would be invalid SQL.
+  if (nextCategoryId !== undefined) {
+    values.push(nextCategoryId);
+    sets.push(`category_id = $${values.length}`);
+  }
+
   for (const [key, column] of Object.entries(WRITABLE_COLUMNS)) {
+    // Both category selectors are handled above; neither is a payload column.
+    if (key === 'categoryName' || key === 'categoryId') continue;
     if (key in input) {
       values.push((input as Record<string, unknown>)[key]);
       sets.push(`${column} = $${values.length}`);
     }
+  }
+
+  // Defensive: the schema requires ≥ 1 field, so this can only be reached if a
+  // future change lets a no-op through. Fail as a 400 rather than issuing SQL
+  // with an empty SET list.
+  if (sets.length === 0) {
+    throw new HttpError(400, 'Invalid request — no fields to update');
   }
 
   try {
