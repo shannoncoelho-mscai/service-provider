@@ -45,6 +45,12 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   const parts = stored.split('$');
   if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
   const [, nStr, rStr, pStr, saltB64, hashB64] = parts;
+  const n = Number(nStr);
+  const r = Number(rStr);
+  const p = Number(pStr);
+  if (![n, r, p].every((value) => Number.isSafeInteger(value) && value > 0)) {
+    return false;
+  }
   const salt = Buffer.from(saltB64, 'base64');
   const expected = Buffer.from(hashB64, 'base64');
   if (salt.length === 0 || expected.length === 0) return false;
@@ -55,7 +61,7 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
       plain.normalize('NFKC'),
       salt,
       expected.length,
-      { N: Number(nStr), r: Number(rStr), p: Number(pStr), maxmem: MAXMEM },
+      { N: n, r, p, maxmem: MAXMEM },
       (err, key) => (err ? reject(err) : resolve(key)),
     );
   });
