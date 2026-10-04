@@ -22,8 +22,11 @@ The application is **feature-complete** across every planned phase:
 | **Admin** | Verification queue, provider detail, approve / reject / suspend, all written to an audit log |
 | **Notifications** | In-app notifications for every booking event, committed in the same transaction as the state change |
 
-**Test baseline:** server **253 passing**, client **305 passing**, typecheck and
+**Test baseline:** server **311 passing / 313**, client **364 passing**, typecheck and
 production build clean.
+
+The two server failures are both in `server/src/tests/search.test.ts` and are
+**not** image-related — see [Known test failures](#known-test-failures).
 
 Not built (deliberately out of scope): payments, chat, email/SMS/push delivery,
 provider replies to reviews, and a password-reset flow. Rate limiting is the
@@ -122,7 +125,7 @@ serviceconnect/
 │       │   └── ui/                  # Alert, LoadingState, ErrorState, Field
 │       ├── lib/                     # api client, auth session, pure helpers
 │       ├── pages/                   # one file per route
-│       ├── tests/                   # 305 tests
+│       ├── tests/                   # 364 tests
 │       └── types/                   # shared TS types (mirror the API)
 ├── server/                          # Express API
 │   └── src/
@@ -132,7 +135,7 @@ serviceconnect/
 │       ├── modules/                 # auth, providers, bookings, reviews,
 │       │                            # notifications, admin, health
 │       ├── shared/                  # HttpError, enums, transition table
-│       └── tests/                   # 253 tests
+│       └── tests/                   # 313 tests
 ├── database/
 │   ├── migrations/                  # 11 append-only, checksum-tracked files
 │   └── README.md                    # schema reference + seed accounts
@@ -209,8 +212,39 @@ token.
 | `POST` | `/providers/me/services` | Create a service |
 | `PATCH` | `/providers/me/services/:id` | Update a service |
 | `DELETE` | `/providers/me/services/:id` | Remove a service |
+| `GET` | `/providers/me/images` | My business image gallery |
+| `POST` | `/providers/me/images` | Upload images (multipart, field `images`) |
+| `DELETE` | `/providers/me/images/:id` | Delete one of my images (row + file) |
+| `GET` | `/providers/me/services/:id/images` | Photos attached to one of my services |
+| `POST` | `/providers/me/services/:id/images` | Upload service photos (multipart, field `images`) |
+| `DELETE` | `/providers/me/services/:id/images/:imageId` | Delete one service photo (row + file) |
 | `GET` | `/provider/bookings` | My job queue |
 | `PATCH` | `/provider/bookings/:id/status` | `{ status, reason? }` — reason required to reject |
+
+#### Business images
+
+Providers upload photos of their work from **My business** (`/provider/business`).
+Uploaded images appear automatically on the public profile through the existing
+`ImageGallery` — there is no second public gallery.
+
+| Rule | Value |
+|------|-------|
+| Accepted types | JPG, PNG, WebP |
+| Max size per file | 5 MB |
+| Max files per request | 10 |
+| Storage | `server/uploads/providers/` (created automatically at boot) |
+| Served at | `/uploads/providers/<filename>` |
+
+Files are stored on the API server's local disk and served by `express.static`
+from that one directory only — the rest of the filesystem is never exposed. This
+is deliberately a **local development** setup. For production, replace it with
+object storage (S3/GCS) plus a CDN; `provider_images.url` is already an
+absolute http(s) URL, so that change is configuration only and needs no
+migration.
+
+Uploaded filenames are server-generated UUIDs — the client's filename is never
+used, so a request cannot choose where a file lands. A provider's first image
+becomes their primary; only one image can ever be primary.
 
 ### Notifications (any role, always your own rows)
 
@@ -239,7 +273,7 @@ previous and new status, and the reason.
 ## Testing
 
 ```bash
-npm test              # 253 server + 305 client
+npm test              # 290 server + 340 client
 npm run test:server
 npm run test:client
 ```
@@ -255,6 +289,37 @@ error responses and public payloads never contain SQL, stack traces or customer
 contact details.
 
 ---
+
+## Known test failures
+
+Two tests in `server/src/tests/search.test.ts` fail. Neither is related to image
+management, and neither indicates broken application behaviour — both are
+problems with how the *test* picks its fixture data.
+
+### 1. `sort: rating, price and newest` (pre-existing)
+
+`price_min` is `NULL` for an approved provider with no services, and
+`Number(null)` is `0`, so those rows sort as though they were free. This
+predates the image work and reproduces on a clean checkout.
+
+### 2. `filter: keyword matches ... service names`
+
+The test picks its fixture with:
+
+```sql
+SELECT name, provider_id FROM services WHERE is_active ORDER BY name LIMIT 1
+```
+
+and then asserts the owning provider is returned by search. That is only valid
+if the alphabetically-first service belongs to a **public** provider. When the
+seed created a demo catalogue it almost always did; after the demo services were
+removed (see below) the first row alphabetically is `"web designing"`, whose
+owner is `REJECTED` — and a rejected provider is correctly absent from
+`public_providers` (ADR-022), so search rightly returns nothing.
+
+The application is behaving correctly; the fixture selection is under-specified.
+A durable fix scopes the query to `public_providers` rather than relying on
+alphabetical luck.
 
 ## Documentation
 

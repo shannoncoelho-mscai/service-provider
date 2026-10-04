@@ -132,7 +132,20 @@ before(async () => {
 
 after(async () => {
   try {
-    for (const address of Object.values(emails)) {
+    // Delete every address this file created, not just the fixed ones in
+    // `emails`.
+    //
+    // The APPROVAL test below registers `svc-pending-${runId}@example.com` on
+    // the fly. That address is not in `emails`, so the old loop left the user,
+    // their provider_profiles row and their "Window fix" service behind in the
+    // database. Because the suite runs services.test.ts BEFORE search.test.ts,
+    // search.test.ts then picked that orphaned PENDING provider's service as its
+    // keyword fixture — and a PENDING provider is correctly absent from
+    // public_providers, so the search assertion failed for a reason that had
+    // nothing to do with search. Deleting by the run id catches every fixture
+    // this file makes, present or future.
+    const addresses = [...Object.values(emails), `svc-pending-${runId}@example.com`];
+    for (const address of addresses) {
       // services cascade from provider_profiles; admin_action_log restricts
       // admin deletion, so clear this test admin's (empty) audit trail first.
       await pool.query('DELETE FROM admin_action_log WHERE admin_id IN (SELECT id FROM users WHERE email = $1)', [

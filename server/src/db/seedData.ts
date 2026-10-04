@@ -36,7 +36,7 @@ export const CUSTOMERS = [
 export type SeedStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
 export interface SeedProvider {
-  /** user/profile id → u(n); services get ids u(n*10+i) */
+  /** user/profile id → u(n) */
   n: number;
   email: string;
   owner: string;
@@ -48,7 +48,6 @@ export interface SeedProvider {
   areas: string[];
   status: SeedStatus;
   rate: string;
-  services: [title: string, price: string][];
 }
 
 /**
@@ -61,54 +60,60 @@ export interface SeedProvider {
  * `rate` is the provider's advertised starting rate, NOT an hourly figure; the
  * UI labels it "from". Every price is a plain numeric string, exactly as
  * PostgreSQL returns NUMERIC: no currency symbol is stored anywhere.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NO SEEDED SERVICES (Phase 21).
+ *
+ * This fixture set used to carry a `services: [title, price][]` array per
+ * provider, and seed.ts inserted one row per entry. Those were demonstration
+ * rows invented by the project, never approved by a real user, and they
+ * outnumbered the services real providers had actually created — so the public
+ * directory was mostly fiction. They have been removed.
+ *
+ * The providers themselves are KEPT on purpose. They are the fixture that gives
+ * the "only APPROVED is public" rule something to be tested against
+ * (search.test.ts, profile.test.ts, bookings.test.ts all read the seeded
+ * directory). A provider with no services is a legitimate, everyday state — it
+ * is what every brand-new provider looks like before they publish anything.
+ *
+ * Services are now created only by real providers through the API, or by a test
+ * that provisions its own fixture.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 export const PROVIDERS: SeedProvider[] = [
-  { n: 100, email: 'contact@ganpatiacqua.example.com', owner: 'Rajesh Naik', business: 'Ganpati Aqua Plumbing', category: 0, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Dona Paula'], status: 'APPROVED', rate: '7500.00',
-    services: [['Emergency pipe repair', '4500.00'], ['Drain unclogging', '2500.00']] },
-  { n: 101, email: 'contact@voltwright.example.com', owner: 'Priya Kamat', business: 'VoltRight Electrical Works', category: 1, city: 'Mapusa', areas: ['Mapusa', 'Sichim', 'Assemode'], status: 'APPROVED', rate: '9000.00',
-    services: [['Electrical panel inspection', '3500.00'], ['Outlet installation', '1800.00']] },
-  { n: 102, email: 'contact@teakcraft.example.com', owner: 'Sunil Pawar', business: 'TeakCraft Carpentry', category: 2, city: 'Margao', areas: ['Margao', 'Cavelossim', 'Madgaon'], status: 'APPROVED', rate: '12000.00',
-    services: [['Custom shelving build', '18000.00'], ['Door installation', '9500.00']] },
-  { n: 103, email: 'contact@brightcoat.example.com', owner: 'Farhan Khan', business: 'BrightCoat Painters', category: 3, city: 'Ponda', areas: ['Ponda', 'Vodlem', 'Borim'], status: 'APPROVED', rate: '15000.00',
-    services: [['Interior room repaint', '24000.00'], ['Exterior trim painting', '16000.00']] },
-  { n: 104, email: 'contact@sparklehive.example.com', owner: 'Meera Fernandes', business: 'SparkleHive Home Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Saligao', 'Arpora'], status: 'APPROVED', rate: '3000.00',
-    services: [['Deep clean (3 bed)', '6500.00'], ['Move-out cleaning', '8000.00']] },
-  { n: 105, email: 'contact@servicekart.example.com', owner: 'Rohit Shirodkar', business: 'ServiceKart Appliance Care', category: 5, city: 'Vasco da Gama', areas: ['Vasco da Gama', 'Dabolim', 'Mormugao'], status: 'APPROVED', rate: '7500.00',
-    services: [['Washing machine diagnosis', '2000.00'], ['Refrigerator repair', '2800.00']] },
-  { n: 106, email: 'contact@nestcraft.example.com', owner: 'Anjali Prabhu', business: 'NestCraft Interiors', category: 6, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Old Goa'], status: 'APPROVED', rate: '15000.00',
-    services: [['Room redesign consultation', '5000.00'], ['Full-home staging', '85000.00']] },
-  { n: 107, email: 'contact@garagegoa.example.com', owner: 'Vikram Sawant', business: 'Goa Garage Motors', category: 7, city: 'Mapusa', areas: ['Mapusa', 'Aldona', 'Bicholim'], status: 'APPROVED', rate: '10000.00',
-    services: [['Brake service', '5500.00'], ['Engine diagnostics', '3500.00']] },
-  { n: 108, email: 'contact@quickpatch.example.com', owner: 'Sandeep Naik', business: 'QuickPatch Plumbing', category: 0, city: 'Margao', areas: ['Margao', 'Curtorim'], status: 'PENDING', rate: '6000.00',
-    services: [['Leak patching', '1500.00']] },
-  { n: 109, email: 'contact@shadowvolt.example.com', owner: 'Kunal Raikar', business: 'ShadowVolt Services', category: 1, city: 'Ponda', areas: ['Ponda', 'Satari'], status: 'REJECTED', rate: '8000.00',
-    services: [['Wiring upgrade', '22000.00']] },
-  { n: 110, email: 'contact@pureshine.example.com', owner: 'Nikhil Patil', business: 'PureShine Office Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Candolim'], status: 'SUSPENDED', rate: '4000.00',
-    services: [['Office cleaning (per visit)', '12000.00']] },
+  { n: 100, email: 'contact@ganpatiacqua.example.com', owner: 'Rajesh Naik', business: 'Ganpati Aqua Plumbing', category: 0, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Dona Paula'], status: 'APPROVED', rate: '7500.00' },
+  { n: 101, email: 'contact@voltwright.example.com', owner: 'Priya Kamat', business: 'VoltRight Electrical Works', category: 1, city: 'Mapusa', areas: ['Mapusa', 'Sichim', 'Assemode'], status: 'APPROVED', rate: '9000.00' },
+  { n: 102, email: 'contact@teakcraft.example.com', owner: 'Sunil Pawar', business: 'TeakCraft Carpentry', category: 2, city: 'Margao', areas: ['Margao', 'Cavelossim', 'Madgaon'], status: 'APPROVED', rate: '12000.00' },
+  { n: 103, email: 'contact@brightcoat.example.com', owner: 'Farhan Khan', business: 'BrightCoat Painters', category: 3, city: 'Ponda', areas: ['Ponda', 'Vodlem', 'Borim'], status: 'APPROVED', rate: '15000.00' },
+  { n: 104, email: 'contact@sparklehive.example.com', owner: 'Meera Fernandes', business: 'SparkleHive Home Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Saligao', 'Arpora'], status: 'APPROVED', rate: '3000.00' },
+  { n: 105, email: 'contact@servicekart.example.com', owner: 'Rohit Shirodkar', business: 'ServiceKart Appliance Care', category: 5, city: 'Vasco da Gama', areas: ['Vasco da Gama', 'Dabolim', 'Mormugao'], status: 'APPROVED', rate: '7500.00' },
+  { n: 106, email: 'contact@nestcraft.example.com', owner: 'Anjali Prabhu', business: 'NestCraft Interiors', category: 6, city: 'Panaji', areas: ['Panaji', 'Panjim', 'Old Goa'], status: 'APPROVED', rate: '15000.00' },
+  { n: 107, email: 'contact@garagegoa.example.com', owner: 'Vikram Sawant', business: 'Goa Garage Motors', category: 7, city: 'Mapusa', areas: ['Mapusa', 'Aldona', 'Bicholim'], status: 'APPROVED', rate: '10000.00' },
+  { n: 108, email: 'contact@quickpatch.example.com', owner: 'Sandeep Naik', business: 'QuickPatch Plumbing', category: 0, city: 'Margao', areas: ['Margao', 'Curtorim'], status: 'PENDING', rate: '6000.00' },
+  { n: 109, email: 'contact@shadowvolt.example.com', owner: 'Kunal Raikar', business: 'ShadowVolt Services', category: 1, city: 'Ponda', areas: ['Ponda', 'Satari'], status: 'REJECTED', rate: '8000.00' },
+  { n: 110, email: 'contact@pureshine.example.com', owner: 'Nikhil Patil', business: 'PureShine Office Cleaning', category: 4, city: 'Porvorim', areas: ['Porvorim', 'Candolim'], status: 'SUSPENDED', rate: '4000.00' },
 ];
 
-// --- bookings: covers all six statuses; scheduled = day offset from today --
-export interface SeedBooking {
-  id: number; customer: number; provider: number; service: number;
-  status: string; scheduled: number; cancellation?: string; rejection?: string;
-}
-export const BOOKINGS: SeedBooking[] = [
-  { id: 4000, customer: 10, provider: 100, service: 1000, status: 'COMPLETED', scheduled: -10 },
-  { id: 4001, customer: 10, provider: 101, service: 1010, status: 'ACCEPTED', scheduled: 3 },
-  { id: 4002, customer: 11, provider: 100, service: 1001, status: 'PENDING', scheduled: 2 },
-  { id: 4003, customer: 11, provider: 102, service: 1020, status: 'CANCELLED', scheduled: 5,
-    cancellation: 'Schedule conflict — rebooked later' },
-  { id: 4004, customer: 10, provider: 103, service: 1030, status: 'IN_PROGRESS', scheduled: -1 },
-  { id: 4005, customer: 11, provider: 104, service: 1040, status: 'COMPLETED', scheduled: -5 },
-  { id: 4006, customer: 11, provider: 105, service: 1051, status: 'REJECTED', scheduled: 4,
-    rejection: 'Part unavailable this week' },
-];
+// --- bookings and reviews: REMOVED (Phase 21) ---------------------------
+//
+// Both fixture sets used to live here and have been deleted.
+//
+// They are not independent of the seeded services: `bookings.service_id`
+// REFERENCES services(id) ON DELETE RESTRICT, so a booking cannot outlive the
+// service it was booked against. Every seeded booking pointed at a seeded
+// service (u(1000), u(1010), …), and every seeded review pointed at one of
+// those bookings via `reviews.booking_id … ON DELETE CASCADE`.
+//
+// That makes them the same category of row as the services themselves: content
+// invented by the project and never approved by a real user. Leaving them would
+// have meant either keeping the dummy services (the thing being removed) or
+// orphaning bookings, which the schema correctly forbids.
+//
+// Bookings and reviews are now created only by real activity through the API.
+// Tests that need them provision their own fixture in `before()` rather than
+// relying on the database arriving pre-populated.
 
-/** [id, booking, customer, provider, rating, comment] — composite FKs match. */
-export const REVIEWS: [number, number, number, number, number, string][] = [
-  [5000, 4000, 10, 100, 5, 'Fast, tidy and explained everything. Highly recommended.'],
-  [5001, 4005, 11, 104, 4, 'Spotless result, arrived right on time.'],
-];
+// --- admin decisions: reference providers only, so they are unaffected ---
 
 /** [id, targetProvider, previous, new, note] */
 export const ADMIN_LOGS: [number, number, string, string, string][] = [

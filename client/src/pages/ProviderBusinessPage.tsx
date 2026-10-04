@@ -28,6 +28,8 @@ import type {
   UpdateMyProviderInput,
 } from '../types';
 import VerificationNotice from '../components/provider/VerificationNotice';
+import BusinessImages from '../components/provider/BusinessImages';
+import ServiceImages from '../components/provider/ServiceImages';
 import { Alert, ErrorState, Field, LoadingState, inputClass } from '../components/ui';
 
 type State =
@@ -877,49 +879,60 @@ export default function ProviderBusinessPage() {
 
           {/* Editor: create (id null) or edit an existing row. */}
           {editing ? (
-            <form
-              onSubmit={saveService}
-              noValidate
-              className="mt-4 space-y-4 rounded-2xl border border-line bg-canvas/50 p-4"
-            >
-              <h3 className="text-sm font-semibold text-ink">
-                {editing.id ? 'Edit service' : 'Add a service'}
-              </h3>
-              <ServiceFields
-                draft={editing}
-                categories={categories}
-                busy={savingService}
-                onChange={(patch) => setEditing({ ...editing, ...patch })}
-              />
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={savingService}
-                  className="btn btn-primary px-4 py-2.5 text-sm disabled:opacity-60"
-                >
-                  {savingService ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      Saving...
-                    </>
-                  ) : editing.id ? (
-                    'Save changes'
-                  ) : (
-                    'Add service'
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(null);
-                    setServiceError(null);
-                  }}
-                  className="btn btn-ghost px-4 py-2.5 text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+            <>
+              <form
+                onSubmit={saveService}
+                noValidate
+                className="mt-4 space-y-4 rounded-2xl border border-line bg-canvas/50 p-4"
+              >
+                <h3 className="text-sm font-semibold text-ink">
+                  {editing.id ? 'Edit service' : 'Add a service'}
+                </h3>
+                <ServiceFields
+                  draft={editing}
+                  categories={categories}
+                  busy={savingService}
+                  onChange={(patch) => setEditing({ ...editing, ...patch })}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={savingService}
+                    className="btn btn-primary px-4 py-2.5 text-sm disabled:opacity-60"
+                  >
+                    {savingService ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        Saving...
+                      </>
+                    ) : editing.id ? (
+                      'Save changes'
+                    ) : (
+                      'Add service'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(null);
+                      setServiceError(null);
+                    }}
+                    className="btn btn-ghost px-4 py-2.5 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+
+              {/* Service Images sit OUTSIDE the form on purpose (Phase 21).
+                  Photos are uploaded one request at a time against an existing
+                  service id, so they cannot be part of the create/update payload:
+                  on the "add a service" path there is no id to attach them to yet.
+                  Hence the provider saves the service first, then adds photos.
+                  Placing them inside would also mean the file input's selection
+                  was submitted with the form and silently dropped. */}
+              {editing.id && <ServiceImages serviceId={editing.id} />}
+            </>
           ) : (
             <button
               type="button"
@@ -955,6 +968,16 @@ export default function ProviderBusinessPage() {
             </ul>
           )}
         </section>
+      </div>
+
+      {/*
+        Business gallery, full width beneath the two-column area. Mounted
+        unconditionally so a provider can upload while PENDING — their images
+        simply stay off the public profile until an admin approves them, which
+        the empty-state note inside the component says out loud.
+      */}
+      <div className="mt-6">
+        <BusinessImages />
       </div>
     </div>
   );

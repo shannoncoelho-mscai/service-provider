@@ -46,6 +46,14 @@ export interface PublicServiceDto {
   priceTo: string | null;
   durationMinutes: number | null;
   category: { slug: string; name: string };
+  /**
+   * Photos of THIS service. Always present (never undefined) so the client does
+   * not need `?.` or a null check, and empty for the common case of a service
+   * with no photos — the customer UI then renders exactly the layout it did
+   * before this field existed. Images are optional in the data model by design;
+   * they are never required to publish a service.
+   */
+  images: PublicImageDto[];
 }
 
 /** A gallery image. */
@@ -84,8 +92,8 @@ export async function getPublicProviderProfile(
 
   const provider = toPublicDto(row);
 
-  // Three small reads, issued together.
-  const [services, images, reviews] = await Promise.all([
+  // Four small reads, issued together.
+  const [services, images, reviews, serviceImages] = await Promise.all([
     pool.query<{
       id: string;
       name: string;
@@ -122,7 +130,35 @@ export async function getPublicProviderProfile(
         LIMIT $2`,
       [providerId, REVIEW_LIMIT],
     ),
+    // Per-service photos, keyed by service id, for ONE round trip.
+    //
+    // Scoped to the SAME rows the service query above can return (active
+    // service + active category), so visibility cannot leak through an image: an
+    // image belonging to a deactivated service is not published even if its row
+    // still exists. And because this whole function is only reached through the
+    // `public_providers` read above, an unapproved provider returns 404 before
+    // any of these queries run (ADR-022).
+    pool.query<{ service_id: string; url: string; alt_text: string | null }>(
+      `SELECT si.service_id, si.url, si.alt_text
+         FROM service_images si
+         JOIN services s ON s.id = si.service_id
+         JOIN service_categories c ON c.id = s.category_id
+        WHERE s.provider_id = $1
+          AND s.is_active
+          AND c.is_active
+        ORDER BY si.sort_order ASC, si.created_at ASC`,
+      [providerId],
+    ),
   ]);
+
+  // Bucket the flat image rows by service id so the service mapper below can do
+  // a single lookup instead of re-querying per service (N+1).
+  const imagesByService = new Map<string, PublicImageDto[]>();
+  for (const row of serviceImages.rows) {
+    const list = imagesByService.get(row.service_id);
+    if (list) list.push({ url: row.url, altText: row.alt_text });
+    else imagesByService.set(row.service_id, [{ url: row.url, altText: row.alt_text }]);
+  }
 
   return {
     ...provider,
@@ -134,6 +170,9 @@ export async function getPublicProviderProfile(
       priceTo: s.price_to,
       durationMinutes: s.duration_minutes,
       category: { slug: s.category_slug, name: s.category_name },
+      // Always an array, possibly empty — the UI omits the section when it is,
+      // so services without photos keep the exact layout they had before.
+      images: imagesByService.get(s.id) ?? [],
     })),
     images: images.rows.map((i) => ({ url: i.url, altText: i.alt_text })),
     reviews: reviews.rows.map((r) => ({

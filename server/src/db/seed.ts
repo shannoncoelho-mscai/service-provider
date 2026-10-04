@@ -4,12 +4,10 @@ import { hashPassword } from '../lib/password';
 import {
   ADMIN,
   ADMIN_LOGS,
-  BOOKINGS,
   CATEGORIES,
   CUSTOMERS,
   DEV_PASSWORD,
   PROVIDERS,
-  REVIEWS,
   daysFromNow,
   u,
 } from './seedData';
@@ -106,13 +104,11 @@ async function main(): Promise<void> {
         ],
       );
 
-      for (const [i, [name, price]] of p.services.entries()) {
-        await client.query(
-          `INSERT INTO services (id, provider_id, category_id, name, price_from, price_type, duration_minutes)
-           VALUES ($1, $2, $3, $4, $5, 'FIXED', $6) ON CONFLICT (id) DO NOTHING`,
-          [u(p.n * 10 + i), u(p.n), CATEGORIES[p.category].id, name, price, 60 + i * 30],
-        );
-      }
+      // NO services are inserted here (Phase 21). The demo catalogue was
+      // removed because those rows were invented by the project rather than
+      // created by a real provider; see the long note in seedData.ts. The
+      // provider profile and its storefront image are still seeded, because
+      // those are what the approval and visibility rules are tested against.
 
       const slug = p.email.split('@')[1]?.split('.')[0] ?? `provider${p.n}`;
       await client.query(
@@ -122,32 +118,9 @@ async function main(): Promise<void> {
       );
     }
 
-    // --- bookings (all six statuses) ---
-    for (const b of BOOKINGS) {
-      await client.query(
-        `INSERT INTO bookings
-           (id, customer_id, provider_id, service_id, status, scheduled_at,
-            address, price_quote, cancellation_reason, rejection_reason, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (id) DO NOTHING`,
-        [
-          u(b.id), u(b.customer), u(b.provider), u(b.service), b.status,
-          // Goa-relative customer address and an INR quote, matching the
-          // Indian market the rest of the fixtures now describe.
-          daysFromNow(b.scheduled), '12 Nehru Marg, Panaji, Goa 403001', '4500.00',
-          b.cancellation ?? null, b.rejection ?? null, daysFromNow(-12),
-        ],
-      );
-    }
-
-    // --- reviews (composite FKs must match the booking row) ---------------
-    for (const [id, booking, customer, provider, rating, comment] of REVIEWS) {
-      await client.query(
-        `INSERT INTO reviews (id, booking_id, customer_id, provider_id, rating, comment)
-         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
-        [u(id), u(booking), u(customer), u(provider), rating, comment],
-      );
-    }
+    // NO bookings or reviews are inserted here (Phase 21). Both were tied by
+    // foreign key to the seeded services that have just been removed, so they
+    // were removed with them. See the note in seedData.ts.
 
     // --- admin action log --------------------------------------------------
     for (const [id, target, previous, next, note] of ADMIN_LOGS) {

@@ -20,6 +20,7 @@ import {
 } from '../lib/admin-utils';
 import type { AdminDecision, AdminProviderReview } from '../types';
 import DecisionButtons from '../components/admin/DecisionButtons';
+import AdminBusinessImages from '../components/admin/AdminBusinessImages';
 import DecisionDialog from '../components/admin/DecisionDialog';
 import VerificationStatusBadge from '../components/admin/VerificationStatusBadge';
 import { Alert, ErrorState, LoadingState } from '../components/ui';
@@ -304,6 +305,11 @@ export default function AdminProviderPage() {
               </ul>
             )}
           </section>
+
+          {/* Business photos (Phase 21) — read-only evidence, placed directly
+              after the catalogue so a reviewer reads services and photos as one
+              picture of what this provider actually does. */}
+          <AdminBusinessImages images={view.images} />
 
           <section className="card p-5">
             <h2 className="text-sm font-semibold text-ink">Details for review</h2>

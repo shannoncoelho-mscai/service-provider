@@ -69,12 +69,72 @@ export interface PublicService {
   priceTo: string | null;
   durationMinutes: number | null;
   category: { slug: string; name: string };
+  /**
+   * Photos of THIS service (Phase 21). Always an array, possibly empty.
+   *
+   * These are distinct from the provider-level `PublicProviderProfile.images`:
+   * the business gallery shows who the provider is, these show what a specific
+   * job looks like. The customer UI omits the section entirely when empty, so a
+   * service without photos renders exactly as it did before this field existed.
+   */
+  images: PublicImage[];
 }
 
-/** A gallery image. */
+/** A gallery image on the PUBLIC profile. Deliberately anonymous. */
 export interface PublicImage {
   url: string;
   altText: string | null;
+}
+
+/**
+ * A gallery image in the PROVIDER's own management view (Phase 20).
+ *
+ * Distinct from `PublicImage` on purpose: the public DTO exposes only `url` and
+ * `altText`, while the owner also needs the row `id` to delete it, plus the
+ * primary flag and sort order. Keeping them separate means a management field
+ * can never leak onto the public profile by accident.
+ */
+export interface ProviderImage {
+  id: string;
+  url: string;
+  altText: string | null;
+  isPrimary: boolean;
+  sortOrder: number;
+}
+
+/**
+ * One photo attached to a single SERVICE (Phase 21).
+ *
+ * Distinct from `ProviderImage` in three ways, and the differences are the whole
+ * point of keeping the two apart:
+ *   - no `isPrimary`: there is no single representative photo for a service, so
+ *     a "primary" flag would be a concept with no meaning here;
+ *   - carries `serviceId`, because these rows are listed and deleted per service;
+ *   - `createdAt`, which the provider view uses to label previews.
+ */
+export interface ServiceImage {
+  id: string;
+  serviceId: string;
+  url: string;
+  altText: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
+
+/**
+ * One business image as the ADMIN review screen needs it (Phase 21).
+ *
+ * Same fields as `ProviderImage`: the reviewer sees the provider's own gallery
+ * exactly as the provider arranged it. It is a separate type because the admin
+ * surface is read-only — there is no admin upload or delete, so the management
+ * affordances must not be implied by the type.
+ */
+export interface AdminProviderImage {
+  id: string;
+  url: string;
+  altText: string | null;
+  isPrimary: boolean;
+  sortOrder: number;
 }
 
 /** A review. Deliberately anonymous — the API never returns a reviewer id. */
@@ -424,6 +484,13 @@ export interface AdminProviderDetail extends ProviderProfile {
    * which the public DTO deliberately omits.
    */
   services: AdminProviderService[];
+  /**
+   * The provider's uploaded BUSINESS photos, for inspection before a decision
+   * (Phase 21). READ-ONLY: a reviewer must be able to judge the evidence
+   * without being able to alter it, so there is deliberately no admin upload or
+   * delete endpoint anywhere in the codebase.
+   */
+  images: AdminProviderImage[];
 }
 
 /** One service row on the admin review screen. */

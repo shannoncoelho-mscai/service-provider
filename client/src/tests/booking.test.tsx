@@ -243,6 +243,9 @@ const SERVICE: PublicService = {
   priceTo: '150.00',
   durationMinutes: 90,
   category: { slug: 'plumbing', name: 'Plumbing' },
+  // Service photos (Phase 21). Empty here: this fixture exercises the booking
+  // card, and the "no photos" path is the one worth pinning for it.
+  images: [],
 };
 
 const BOOKING: Booking = {

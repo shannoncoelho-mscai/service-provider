@@ -3,6 +3,7 @@ import type {
   AdminProviderDetail,
   AdminProviderReview,
   AdminProviderService,
+  AdminProviderImage,
   VerificationStatus,
 } from '../types';
 
@@ -57,6 +58,17 @@ export interface AdminProviderView {
    * the admin screen without someone deciding it belongs there.
    */
   services: AdminProviderService[];
+  /**
+   * The provider's uploaded BUSINESS photos, for inspection before deciding
+   * (Phase 21).
+   *
+   * Copied field by field, exactly like `services`, because this projection is
+   * the allow-list that decides what an admin screen can render at all. Note
+   * what is absent: there is no `createdAt`, and no mutating affordance is
+   * implied anywhere. The review is READ-ONLY — a reviewer must be able to judge
+   * the evidence without being able to alter it.
+   */
+  images: AdminProviderImage[];
 }
 
 /** Project an admin DTO onto the renderable view. Pure; copies arrays. */
@@ -81,6 +93,9 @@ export function adminProviderView(provider: AdminProviderDetail): AdminProviderV
     createdAt: provider.createdAt,
     verifiedAt: provider.verifiedAt,
     services: (provider.services ?? []).map((service) => ({ ...service })),
+    // `?? []` guards a server that predates Phase 21, so an older payload
+    // renders the empty state instead of throwing in the reviewer's face.
+    images: (provider.images ?? []).map((image) => ({ ...image })),
   };
 }
 

@@ -39,6 +39,39 @@ export interface AdminProviderDetail extends ProviderProfileDto {
    * subset. Prices are numeric strings; the rupee symbol is added by the UI.
    */
   services: AdminProviderService[];
+  /**
+   * The provider's uploaded BUSINESS photos, for review.
+   *
+   * An admin is being asked to judge whether a real, legitimate business
+   * exists. Photos are the most direct evidence of that, and a reviewer cannot
+   * make a fair decision without them.
+   *
+   * Scoped to `provider_id = $1` like everything else here, so this can never
+   * show one provider's photos on another's review screen. Read from the base
+   * table rather than the `public_providers` view for the same reason as
+   * `services`: a PENDING provider is not in that view at all, yet their photos
+   * are exactly what a reviewer needs.
+   *
+   * READ-ONLY by design. There is deliberately no admin-side upload or delete:
+   * the gallery is the provider's to curate, and giving an admin controls over
+   * it would let them alter the very evidence they are judging.
+   */
+  images: AdminProviderImage[];
+}
+
+/**
+ * One business image as the review screen needs it.
+ *
+ * `isPrimary` is included because a provider marks their best photo as primary,
+ * and a reviewer reasonably expects to see that one first. `sortOrder` is
+ * included so the grid renders in the order the provider chose.
+ */
+export interface AdminProviderImage {
+  id: string;
+  url: string;
+  altText: string | null;
+  isPrimary: boolean;
+  sortOrder: number;
 }
 
 /** One service row as the admin review screen needs it — nothing more. */
@@ -105,6 +138,54 @@ async function listServicesFor(providerId: string): Promise<AdminProviderService
   }));
 }
 
+/**
+ * The provider's business photos, for the admin review screen.
+ *
+ * Scoped to a single provider id, and NOT reading through `public_providers`:
+ * a PENDING provider is not in that view, yet their photos are exactly what a
+ * reviewer needs to see before approving. Ordered primary-first so the grid
+ * leads with the photo the provider considers their best.
+ */
+async function listImagesFor(providerId: string): Promise<AdminProviderImage[]> {
+  const res = await pool.query<{
+    id: string;
+    url: string;
+    alt_text: string | null;
+    is_primary: boolean;
+    sort_order: number;
+  }>(
+    `SELECT id, url, alt_text, is_primary, sort_order
+       FROM provider_images
+      WHERE provider_id = $1
+      ORDER BY is_primary DESC, sort_order ASC, created_at ASC`,
+    [providerId],
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    url: r.url,
+    altText: r.alt_text,
+    isPrimary: r.is_primary,
+    sortOrder: r.sort_order,
+  }));
+}
+
+/**
+ * Both collections for one provider, in parallel.
+ *
+ * Keeps `listPending` and `getDetail` reading as a single expression instead of
+ * a growing argument list, and keeps the N+1 to 2 queries per provider.
+ */
+async function extrasFor(providerId: string): Promise<{
+  services: AdminProviderService[];
+  images: AdminProviderImage[];
+}> {
+  const [services, images] = await Promise.all([
+    listServicesFor(providerId),
+    listImagesFor(providerId),
+  ]);
+  return { services, images };
+}
+
 export async function listPending(): Promise<AdminProviderDetail[]> {
   const res = await pool.query<ProfileRow & OwnerRow>(
     `SELECT ${PROFILE_COLUMNS}, u.full_name, u.email, u.is_active
@@ -113,7 +194,7 @@ export async function listPending(): Promise<AdminProviderDetail[]> {
       WHERE p.verification_status = 'PENDING'
       ORDER BY p.created_at ASC`,
   );
-  return Promise.all(res.rows.map(async (row) => toDetail(row, await listServicesFor(row.user_id))));
+  return Promise.all(res.rows.map(async (row) => toDetail(row, await extrasFor(row.user_id))));
 }
 
 export async function getDetail(providerId: string): Promise<
@@ -145,7 +226,7 @@ export async function getDetail(providerId: string): Promise<
   );
 
   return {
-    ...toDetail(row, await listServicesFor(row.user_id)),
+    ...toDetail(row, await extrasFor(row.user_id)),
     actions: actions.rows.map((a) => ({
       action: a.action,
       previousStatus: a.previous_status,
@@ -158,12 +239,12 @@ export async function getDetail(providerId: string): Promise<
 
 function toDetail(
   row: ProfileRow & OwnerRow,
-  services: AdminProviderService[],
+  extras: { services: AdminProviderService[]; images: AdminProviderImage[] },
 ): AdminProviderDetail {
   const { full_name, email, is_active, ...profile } = row;
   return {
     ...toProfileDto(profile),
-    services,
+    ...extras,
     owner: { fullName: full_name, email, isActive: is_active },
   };
 }

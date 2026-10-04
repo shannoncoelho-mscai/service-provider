@@ -33,32 +33,64 @@ export default function ServiceList({ services }: { services: PublicService[] })
         return (
           <li
             key={service.id}
-            className="card flex flex-col gap-3 p-5 transition-colors hover:border-brand-200 sm:flex-row sm:items-start sm:justify-between"
+            className="card p-5 transition-colors hover:border-brand-200"
           >
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="font-semibold text-ink">{service.name}</h3>
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
-                  {service.category.name}
-                </span>
+            {/* Two-column on desktop: description left, price right. */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold text-ink">{service.name}</h3>
+                  <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                    {service.category.name}
+                  </span>
+                </div>
+                {service.description && (
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+                    {service.description}
+                  </p>
+                )}
+                {duration && (
+                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-ink-soft">
+                    <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                    About {duration}
+                  </p>
+                )}
               </div>
-              {service.description && (
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
-                  {service.description}
-                </p>
-              )}
-              {duration && (
-                <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-ink-soft">
-                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                  About {duration}
-                </p>
-              )}
+
+              <div className="shrink-0 sm:text-right">
+                <p className="text-xs uppercase tracking-wide text-ink-soft">Price</p>
+                <p className="font-display text-lg font-bold text-ink">{priceLabel(service)}</p>
+              </div>
             </div>
 
-            <div className="shrink-0 sm:text-right">
-              <p className="text-xs uppercase tracking-wide text-ink-soft">Price</p>
-              <p className="font-display text-lg font-bold text-ink">{priceLabel(service)}</p>
-            </div>
+            {/*
+              Service photos (Phase 21). Rendered ONLY when the provider uploaded
+              any — a service with no photos keeps exactly the layout it had
+              before this feature, so photos stay genuinely optional rather than
+              becoming an expected field. The strip sits below the two-column
+              block so the price is never squeezed beside it.
+
+              These are NOT the provider's business gallery: those appear higher
+              up the page and show who the business is, these show what this
+              particular job looks like.
+            */}
+            {service.images.length > 0 && (
+              <ul
+                className="mt-4 flex gap-3 overflow-x-auto pb-1"
+                aria-label={`Photos of ${service.name}`}
+              >
+                {service.images.map((image) => (
+                  <li key={image.url} className="shrink-0">
+                    <img
+                      src={image.url}
+                      alt={image.altText ?? `${service.name} by this provider`}
+                      loading="lazy"
+                      className="h-24 w-32 rounded-xl border border-line bg-brand-50 object-cover sm:h-28 sm:w-40"
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         );
       })}

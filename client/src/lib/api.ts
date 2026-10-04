@@ -15,6 +15,8 @@ import type {
   ProviderBookingsResponse,
   ProviderProfile,
   ProviderSearchResponse,
+  ProviderImage,
+  ServiceImage,
   ProviderService,
   ProviderSettableStatus,
   PublicProviderProfile,
@@ -40,6 +42,37 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/**
+ * Multipart upload. Deliberately NOT `request()`.
+ *
+ * `request()` hard-codes `Content-Type: application/json`, and a FormData body
+ * MUST NOT carry that header: the browser has to generate the multipart
+ * boundary itself, so overriding it produces an unparseable request. This
+ * sends FormData with only the Authorization header and lets fetch set the rest.
+ *
+ * Error handling is identical to `request` so an ApiError carries the server's
+ * safe message (which is what states the 5 MB / 10 file limits).
+ */
+async function uploadRequest<T>(path: string, form: FormData): Promise<T> {
+  const token = getAccessToken();
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      (body as { error?: { message?: string } } | null)?.error?.message ??
+      defaultMessageFor(response.status);
+    throw new ApiError(response.status, message);
+  }
+
+  return body as T;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -341,6 +374,150 @@ export async function getMyProviderProfile(): Promise<ProviderProfile> {
     );
     return data.service;
   }
+
+/* ==========================================================================
+   Provider business images (Phase 20)
+   ========================================================================== */
+
+/** Mirrors the server's upload limits so the UI can reject a bad file before
+ *  the request rather than after a round trip. The server re-checks all three;
+ *  this is UX, never the control. */
+export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp';
+export const IMAGE_ACCEPT_LABEL = 'JPG, PNG or WebP';
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_FILES = 10;
+
+/** MIME types the server's Multer allow-list accepts. */
+const ACCEPTED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+
+/** Human file size, so a 5 MB limit is legible rather than a bare number. */
+export function readableSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Reject an obviously invalid file BEFORE the request, so the provider is not
+ * made to wait for a round trip to be told a PDF is not an image.
+ *
+ * Lives here, next to the limits it enforces, because BOTH galleries use it —
+ * `BusinessImages` and `ServiceImages` must agree on what is uploadable, and a
+ * duplicated copy would eventually drift. The server repeats every one of these
+ * checks; this is convenience, never the control.
+ */
+export function validateFiles(files: File[]): string | null {
+  if (files.length === 0) return 'Choose at least one image to upload.';
+  if (files.length > MAX_IMAGE_FILES) {
+    return `You can upload at most ${MAX_IMAGE_FILES} images at a time.`;
+  }
+  for (const file of files) {
+    if (!ACCEPTED_IMAGE_MIME.includes(file.type)) {
+      return `${file.name} is not supported. Images must be ${IMAGE_ACCEPT_LABEL}.`;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      return `${file.name} is ${readableSize(file.size)}. Each image must be 5 MB or smaller.`;
+    }
+  }
+  return null;
+}
+
+/** GET /api/providers/me/images — the provider's own gallery. */
+export async function listMyProviderImages(): Promise<ProviderImage[]> {
+  const data = await api.get<{ images: ProviderImage[] }>('/providers/me/images');
+  return data.images;
+}
+
+/**
+ * POST /api/providers/me/images — upload one or more business images.
+ *
+ * Sends multipart FormData under the repeated field name `images`, which is what
+ * the route's `.array('images', ...)` expects. No `providerId` is ever sent:
+ * ownership comes from the session server-side.
+ */
+export async function uploadProviderImages(
+  files: File[],
+  options: { altText?: string; isPrimary?: boolean } = {},
+): Promise<ProviderImage[]> {
+  if (files.length === 0) {
+    throw new ApiError(400, 'Choose at least one image to upload.');
+  }
+  const form = new FormData();
+  for (const file of files) form.append('images', file);
+  if (options.altText) form.append('altText', options.altText);
+  // Only meaningful for a provider's first image; the server ignores it after.
+  if (options.isPrimary) form.append('isPrimary', 'true');
+
+  const data = await uploadRequest<{ images: ProviderImage[] }>('/providers/me/images', form);
+  return data.images;
+}
+
+/**
+ * DELETE /api/providers/me/images/:id — remove an image the provider owns.
+ *
+ * Returns nothing: the server replies 204, and the caller refetches. There is
+ * no client-side provider id here — the server scopes the delete to the session.
+ */
+export async function deleteProviderImage(id: string): Promise<void> {
+  await api.delete(`/providers/me/images/${id}`);
+}
+
+/* ==========================================================================
+   Service images (Phase 21)
+
+   Photos attached to ONE service, as opposed to the business gallery above.
+   The two are deliberately separate sections in the UI and separate endpoints
+   here: "who this business is" and "what this specific job looks like" are
+   different claims, and a customer choosing between two providers needs both.
+
+   As with the business gallery, NO provider id is ever sent. The service id in
+   the path is the only identifier, and the server proves it belongs to the
+   session's provider before touching any row.
+   ========================================================================== */
+
+/** GET /api/providers/me/services/:id/images — my photos for one of my services. */
+export async function listServiceImages(serviceId: string): Promise<ServiceImage[]> {
+  const data = await api.get<{ images: ServiceImage[] }>(
+    `/providers/me/services/${serviceId}/images`,
+  );
+  return data.images;
+}
+
+/**
+ * POST /api/providers/me/services/:id/images — upload photos for one service.
+ *
+ * Same multipart contract as the business gallery: the repeated field name
+ * `images`, the same 5 MB / 10 file limits, the same accepted types. Only the
+ * URL differs, so the server's Multer policy is shared rather than duplicated.
+ */
+export async function uploadServiceImages(
+  serviceId: string,
+  files: File[],
+  options: { altText?: string } = {},
+): Promise<ServiceImage[]> {
+  if (files.length === 0) {
+    throw new ApiError(400, 'Choose at least one image to upload.');
+  }
+  const form = new FormData();
+  for (const file of files) form.append('images', file);
+  if (options.altText) form.append('altText', options.altText);
+
+  const data = await uploadRequest<{ images: ServiceImage[] }>(
+    `/providers/me/services/${serviceId}/images`,
+    form,
+  );
+  return data.images;
+}
+
+/**
+ * DELETE /api/providers/me/services/:id/images/:imageId — remove one photo.
+ *
+ * Both ids are required: the service id scopes the delete, and passing a service
+ * you do not own yields the same 404 as passing an image that does not exist.
+ */
+export async function deleteServiceImage(serviceId: string, imageId: string): Promise<void> {
+  await api.delete(`/providers/me/services/${serviceId}/images/${imageId}`);
+}
 
 /* ==========================================================================
    Reviews (ADR-028)

@@ -148,5 +148,26 @@ export const serviceIdParamSchema = z.object({
   id: z.string().uuid('must be a valid UUID'),
 });
 
+/** Both ids on a service-image route: which service, and which image. */
+export const serviceImageParamsSchema = z.object({
+  id: z.string().uuid('must be a valid UUID'),
+  imageId: z.string().uuid('must be a valid UUID'),
+});
+
+/**
+ * Multipart text fields for a service-image upload (Phase 21).
+ *
+ * STRICT for the same reason as every schema here: `serviceId` or `providerId`
+ * in the body would be ignored at best. Ownership is proven from the URL's
+ * `:id` against the SESSION's provider, never from the payload.
+ */
+export const uploadServiceImagesSchema = z
+  .object({
+    altText: z.string().trim().max(200, 'must be at most 200 characters').optional(),
+  })
+  .strict();
+
+export type UploadServiceImagesInput = z.infer<typeof uploadServiceImagesSchema>;
+
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;

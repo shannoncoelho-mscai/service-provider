@@ -27,6 +27,12 @@ Thumbs.db
 # Vite
 frontend/dist/
 
+# Provider business image uploads (Phase 20).
+# These are USER CONTENT written at runtime to the API server's disk — never
+# committed. The directory is recreated automatically at boot by
+# server/src/config/uploads.ts, so ignoring it loses nothing.
+server/uploads/
+
 # Test / coverage
 coverage/
 

@@ -9,9 +9,20 @@ import * as providerService from './providers.service';
 import {
   createServiceSchema,
   serviceIdParamSchema,
+  serviceImageParamsSchema,
   updateServiceSchema,
+  uploadServiceImagesSchema,
 } from './services.schemas';
 import * as serviceService from './services.service';
+import { imageIdParamSchema, uploadImagesSchema } from './images.schemas';
+import * as imageService from './images.service';
+import * as serviceImageService from './serviceImages.service';
+import {
+  MAX_IMAGE_FILES,
+  providerImageUpload,
+  serviceImageUpload,
+  uploadedFiles,
+} from '../../middleware/upload';
 import { providerSearchQuerySchema, toSearchParams } from './search.schemas';
 import * as searchService from './search.service';
 import * as profileService from './profile.service';
@@ -114,6 +125,104 @@ providersRouter.delete(
   asyncHandler(async (req, res) => {
     const { id } = parseParams(serviceIdParamSchema, req.params);
     res.json({ service: await serviceService.deactivateService(req.user!.id, id) });
+  }),
+);
+
+// --- Business images -------------------------------------------------------
+// Registered with the other `/me` routes, before the `/:id` catch-all, so
+// `/me/images` can never be shadowed by the public profile route.
+//
+// `providerImageUpload.array('images', MAX_IMAGE_FILES)` runs BEFORE the
+// handler, so by the time the handler runs the files are already type-, size-
+// and count-validated and written to disk. A field named anything else is
+// rejected by Multer (LIMIT_UNEXPECTED_FILE → 400), so `providerId` cannot be
+// smuggled through the multipart body.
+
+providersRouter.get(
+  '/me/images',
+  ...providerOnly,
+  asyncHandler(async (req, res) => {
+    res.json({ images: await imageService.listMyImages(req.user!.id) });
+  }),
+);
+
+providersRouter.post(
+  '/me/images',
+  ...providerOnly,
+  providerImageUpload.array('images', MAX_IMAGE_FILES),
+  asyncHandler(async (req, res) => {
+    const files = uploadedFiles(req.files as Express.Multer.File[] | undefined);
+    // Parse the text fields only when at least one file arrived, so an empty
+    // request reports "no images" rather than a confusing field error.
+    const fields = files.length > 0 ? parseBody(uploadImagesSchema, req.body) : null;
+
+    const images = await imageService.createImages(
+      req.user!.id,
+      files,
+      fields?.altText ?? null,
+      fields?.isPrimary ?? false,
+    );
+    res.status(201).json({ images });
+  }),
+);
+
+providersRouter.delete(
+  '/me/images/:id',
+  ...providerOnly,
+  asyncHandler(async (req, res) => {
+    const { id } = parseParams(imageIdParamSchema, req.params);
+    await imageService.deleteImage(req.user!.id, id);
+    res.status(204).send();
+  }),
+);
+
+// --- Service images --------------------------------------------------------
+// Photos attached to ONE service, as opposed to the business gallery above.
+//
+// The `:id` in the path is the SERVICE id. It is never trusted on its own: the
+// service layer proves it belongs to `req.user.id` before any read or write, so
+// provider A pointing the URL at provider B's service id gets the shared 404.
+//
+// Mounted here, among the other `/me` routes and before the `/:id` catch-all, so
+// these paths can never be shadowed by the public profile route.
+
+providersRouter.get(
+  '/me/services/:id/images',
+  ...providerOnly,
+  asyncHandler(async (req, res) => {
+    const { id } = parseParams(serviceIdParamSchema, req.params);
+    res.json({ images: await serviceImageService.listServiceImages(req.user!.id, id) });
+  }),
+);
+
+providersRouter.post(
+  '/me/services/:id/images',
+  ...providerOnly,
+  serviceImageUpload.array('images', MAX_IMAGE_FILES),
+  asyncHandler(async (req, res) => {
+    const { id } = parseParams(serviceIdParamSchema, req.params);
+    const files = uploadedFiles(req.files as Express.Multer.File[] | undefined);
+    // Text fields are parsed only when a file arrived, so an empty request
+    // reports "no images uploaded" rather than a confusing field error.
+    const fields = files.length > 0 ? parseBody(uploadServiceImagesSchema, req.body) : null;
+
+    const images = await serviceImageService.createServiceImages(
+      req.user!.id,
+      id,
+      files,
+      fields?.altText ?? null,
+    );
+    res.status(201).json({ images });
+  }),
+);
+
+providersRouter.delete(
+  '/me/services/:id/images/:imageId',
+  ...providerOnly,
+  asyncHandler(async (req, res) => {
+    const { id, imageId } = parseParams(serviceImageParamsSchema, req.params);
+    await serviceImageService.deleteServiceImage(req.user!.id, id, imageId);
+    res.status(204).send();
   }),
 );
 

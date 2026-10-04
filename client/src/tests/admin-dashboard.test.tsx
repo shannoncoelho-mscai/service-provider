@@ -71,6 +71,16 @@ const PROVIDER: AdminProviderDetail = {
       isActive: false,
     },
   ],
+  // The provider's uploaded business photos, read-only for the reviewer (Phase 21).
+  images: [
+    {
+      id: 'img1',
+      url: 'http://localhost:4000/uploads/providers/shopfront.jpg',
+      altText: 'Shopfront in Panaji',
+      isPrimary: true,
+      sortOrder: 0,
+    },
+  ],
   owner: { fullName: 'Alex Morgan', email: 'alex@example.com', isActive: true },
 };
 
@@ -168,6 +178,12 @@ describe('adminProviderView', () => {
       'description',
       'hourlyRate',
       'id',
+      // Phase 21: the reviewer's read-only view of the provider's gallery.
+      // Like `services`, it is copied field by field by `adminProviderView`, so
+      // adding it here is a deliberate widening of the allow-list. That list is
+      // the mechanism that stops new API fields reaching the admin screen by
+      // accident, so it must never grow implicitly.
+      'images',
       'isPublic',
       'ownerEmail',
       'ownerName',
