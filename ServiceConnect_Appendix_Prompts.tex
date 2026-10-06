@@ -1,0 +1,1475 @@
+\appendix
+\section{Cline Prompts Used During Development}
+\label{app:cline-prompts}
+
+This appendix contains the archived prompts used during the development of
+ServiceConnect. The prompts are presented in their recorded form.
+
+
+\subsection*{MASTER CURSOR PROMPT --- Phase 0}
+
+\begin{quote}
+You are the lead full-stack engineer helping me build a production-style
+college project called ServiceConnect.
+
+ServiceConnect is a local service discovery and booking marketplace.
+
+Customers can discover local service providers such as plumbers, mechanics,
+electricians, carpenters, painters, cleaners, appliance repair technicians,
+interior designers, etc.
+
+There are three roles:
+
+1. CUSTOMER
+2. PROVIDER
+3. ADMIN
+
+Customers can search/filter providers and create service bookings.
+
+Providers can manage their profiles, services, availability, booking requests,
+and clients.
+
+Admins manually verify providers before they become publicly visible.
+
+IMPORTANT:
+Do not build the entire application in one step.
+
+First inspect the current workspace.
+
+If the workspace is empty, propose and create the project structure using:
+
+Frontend:
+React + TypeScript + Vite + Tailwind CSS
+
+Backend:
+Node.js + Express + TypeScript
+
+Database:
+PostgreSQL
+
+Authentication:
+Secure role-based authentication
+
+Before making large changes:
+1. Explain the proposed architecture.
+2. Create a clean folder structure.
+3. Create README.md.
+4. Create .env.example.
+5. Create docs/BUILD_LOG.md.
+6. Create docs/AI_DECISION_LOG.md.
+7. Create docs/SECURITY.md.
+8. Create docs/DEPLOYMENT.md.
+
+Do not put secrets into source code.
+
+Use modular architecture.
+
+Do not use fake security controls implemented only in the frontend.
+
+Backend authorization must enforce CUSTOMER, PROVIDER, and ADMIN permissions.
+
+Start with project scaffolding only.
+
+After scaffolding, stop and tell me:
+- what files were created
+- how to install dependencies
+- how to start the frontend
+- how to start the backend
+- what remains to implement
+
+Do not continue automatically into advanced features.
+\end{quote}
+
+\subsection*{PHASE 1 --- Project Scaffolding Prompt}
+
+\begin{quote}
+Now implement the initial ServiceConnect project scaffolding.
+
+Requirements:
+
+Frontend:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router
+- Lucide icons
+
+Backend:
+- Node.js
+- Express
+- TypeScript
+- centralized error handling
+- environment configuration
+- API routing structure
+
+Create:
+client/
+server/
+docs/
+database/
+
+Add a health endpoint:
+
+GET /api/health
+
+Response:
+
+{
+  "status": "ok",
+  "service": "ServiceConnect API"
+}
+
+Create a clean frontend landing page placeholder.
+
+Create a responsive navigation component.
+
+Do not implement authentication yet.
+
+Run/build/test the project if possible.
+
+Fix all errors before finishing.
+
+At the end, summarize:
+1. files created
+2. commands used
+3. tests performed
+4. issues encountered
+5. decisions made
+\end{quote}
+
+\subsection*{PHASE 2 --- Database Prompt}
+
+\begin{quote}
+Now implement the ServiceConnect database layer.
+
+Use PostgreSQL.
+
+Create the following entities:
+
+User
+ProviderProfile
+ServiceCategory
+Service
+Booking
+Review
+ProviderImage
+AdminActionLog
+
+Implement proper relationships and constraints.
+
+User roles:
+CUSTOMER
+PROVIDER
+ADMIN
+
+Provider verification statuses:
+PENDING
+APPROVED
+REJECTED
+SUSPENDED
+
+Booking statuses:
+PENDING
+ACCEPTED
+REJECTED
+CANCELLED
+IN_PROGRESS
+COMPLETED
+
+Add:
+- primary keys
+- foreign keys
+- indexes where appropriate
+- timestamps
+- useful uniqueness constraints
+
+Important:
+Passwords must never be stored in plaintext.
+
+Create migrations.
+
+Create seed data for development.
+
+Use fictional/demo information only.
+
+Add seed categories and at least 8 fictional providers.
+
+Only APPROVED providers should be considered public.
+
+Document database decisions in docs/AI_DECISION_LOG.md.
+
+Do not continue to frontend features until the database layer works.
+\end{quote}
+
+\subsection*{PHASE 3 --- Authentication Prompt}
+
+\begin{quote}
+Implement secure authentication for ServiceConnect.
+
+Requirements:
+
+- customer registration
+- provider registration
+- login
+- logout
+- current-user endpoint
+- password hashing
+- authentication middleware
+- role-based authorization middleware
+
+Roles:
+CUSTOMER
+PROVIDER
+ADMIN
+
+Security requirements:
+
+- never store plaintext passwords
+- validate input
+- do not expose password hashes
+- do not trust role information supplied by the frontend
+- protect private routes
+- protect admin routes
+- use environment variables for secrets
+- implement appropriate token/session expiration
+- return safe error messages
+- do not reveal whether sensitive credentials exist unnecessarily
+
+Create:
+
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+GET /api/auth/me
+
+Create reusable middleware such as:
+
+requireAuth
+requireRole
+
+Add tests for:
+- successful registration
+- duplicate email
+- invalid login
+- protected endpoint without authentication
+- customer accessing admin endpoint
+- provider accessing admin endpoint
+
+Document security decisions.
+\end{quote}
+
+\subsection*{PHASE 4 --- Provider Registration + Verification Prompt}
+
+\begin{quote}
+Implement the provider onboarding and verification workflow.
+
+Flow:
+
+Provider registers
+→ profile created
+→ status PENDING
+→ provider is NOT publicly visible
+→ admin reviews provider
+→ admin approves/rejects
+→ approved provider becomes publicly searchable
+
+Provider profile should support:
+
+- business name
+- description
+- phone
+- location
+- service area
+- experience
+- profile image
+- cover image
+
+Implement:
+
+GET /api/providers/me
+PATCH /api/providers/me
+
+Admin:
+
+GET /api/admin/providers/pending
+GET /api/admin/providers/:id
+PATCH /api/admin/providers/:id/approve
+PATCH /api/admin/providers/:id/reject
+PATCH /api/admin/providers/:id/suspend
+
+Reject should support a reason.
+
+Every admin decision must create an AdminActionLog.
+
+Security:
+- provider cannot approve themselves
+- provider cannot modify verificationStatus
+- customer cannot access provider admin endpoints
+- provider A cannot modify provider B
+- only admin can change verification status
+
+Add tests for these authorization rules.
+\end{quote}
+
+\subsection*{PHASE 5 --- Service Management Prompt}
+
+\begin{quote}
+Implement provider service management.
+
+Providers can:
+
+- create services
+- edit services
+- deactivate services
+- view their services
+
+A service contains:
+
+- category
+- name
+- description
+- priceFrom
+- priceTo
+- estimated duration
+- active status
+
+Endpoints:
+
+GET /api/providers/me/services
+POST /api/providers/me/services
+PATCH /api/providers/me/services/:id
+DELETE /api/providers/me/services/:id
+
+Important:
+A provider may only modify their own services.
+
+A provider must never be able to modify another provider's service
+by changing an ID in the request URL.
+
+Implement ownership checks server-side.
+
+Add validation for:
+- price
+- service name
+- description
+- duration
+
+Add tests for IDOR/ownership vulnerabilities.
+\end{quote}
+
+\subsection*{PHASE 6 --- Customer Search Prompt}
+
+\begin{quote}
+Now implement the public provider search system.
+
+Customers should be able to search approved providers.
+
+Filters:
+
+- keyword
+- category
+- location
+- minPrice
+- maxPrice
+- rating
+- availability
+
+Only providers with verificationStatus=APPROVED may appear.
+
+Create:
+
+GET /api/providers
+
+Support query parameters.
+
+Validate all query parameters.
+
+Prevent SQL injection by using parameterized queries or ORM-safe queries.
+
+Implement pagination.
+
+Implement sorting:
+
+- rating
+- price
+- newest
+
+Return only information appropriate for public users.
+
+Do not expose:
+- password hashes
+- private admin information
+- internal verification notes
+- sensitive personal information
+
+Add API tests for:
+- filtering
+- pagination
+- unauthorized data exposure
+- pending provider visibility
+- rejected provider visibility
+\end{quote}
+
+\subsection*{PHASE 7 --- Frontend Home Page Prompt}
+
+\begin{quote}
+Now build the ServiceConnect customer-facing home page.
+
+Design goals:
+
+- modern
+- aesthetic
+- professional
+- responsive
+- visually engaging
+- easy to understand
+
+Hero text:
+
+Find reliable local services.
+Book the right professional for the job.
+
+Hero search:
+
+What service do you need?
+Where?
+
+CTA:
+Search Services
+
+Add sections:
+
+1. Popular Services
+2. How ServiceConnect Works
+3. Featured Providers
+4. Why ServiceConnect
+5. Call-to-action for providers
+6. Footer
+
+Popular categories:
+
+Plumbing
+Electrical
+Carpentry
+Painting
+Mechanics
+Cleaning
+AC Repair
+Interior Design
+
+Use cards and icons.
+
+Add subtle animations only where useful.
+
+Make the page responsive.
+
+Do not use generic placeholder dashboard styling.
+
+Use a consistent ServiceConnect design system.
+\end{quote}
+
+\subsection*{PHASE 8 --- Search UI Prompt}
+
+\begin{quote}
+Build the provider search page.
+
+Requirements:
+
+- search bar
+- location input
+- category selection
+- price range
+- rating filter
+- availability filter
+- sort dropdown
+- result count
+- provider cards
+- loading state
+- empty state
+- error state
+
+Provider card should show:
+
+- image
+- business name
+- verified badge
+- category
+- location
+- rating
+- review count
+- starting price
+- availability
+- View Profile
+- Book Service
+
+On mobile:
+- filters should become a drawer/modal
+- cards should stack
+- search controls should remain usable
+
+Connect the UI to the actual backend API.
+
+Do not use hard-coded provider results once API integration is available.
+\end{quote}
+
+\subsection*{PHASE 9 --- Provider Profile Prompt}
+
+\begin{quote}
+Build the provider profile page.
+
+Show:
+
+- cover image
+- profile image
+- business name
+- verified badge
+- rating
+- review count
+- location
+- description
+- services
+- price range
+- experience
+- availability
+- image gallery
+- reviews
+- booking CTA
+
+Only approved providers should be publicly accessible.
+
+If a provider is pending/rejected/suspended, do not expose the normal
+public profile to customers.
+
+Use a professional marketplace layout.
+
+Make it responsive.
+
+Add loading/error states.
+\end{quote}
+
+\subsection*{PHASE 10 --- Booking Backend Prompt}
+
+\begin{quote}
+Implement the ServiceConnect booking system.
+
+Customer booking flow:
+
+1. select provider
+2. select service
+3. describe problem
+4. select date
+5. select time
+6. provide service address
+7. add notes
+8. submit request
+
+Booking statuses:
+
+PENDING
+ACCEPTED
+REJECTED
+CANCELLED
+IN_PROGRESS
+COMPLETED
+
+Endpoints:
+
+POST /api/bookings
+GET /api/bookings/my
+GET /api/bookings/:id
+PATCH /api/bookings/:id/cancel
+
+Provider:
+
+GET /api/provider/bookings
+PATCH /api/provider/bookings/:id/status
+
+Security:
+
+Customer can only create/view/cancel their own bookings.
+
+Provider can only view/update bookings assigned to them.
+
+Provider cannot modify another provider's booking.
+
+Customer cannot change booking status to ACCEPTED or COMPLETED.
+
+Validate dates and required fields.
+
+Prevent invalid state transitions.
+
+Add tests for ownership and authorization.
+\end{quote}
+
+\subsection*{PHASE 11 --- Booking UI Prompt}
+
+\begin{quote}
+Build the complete customer booking experience.
+
+Create a clean multi-step booking interface.
+
+Step 1:
+Select service
+
+Step 2:
+Describe problem
+
+Step 3:
+Date and time
+
+Step 4:
+Address
+
+Step 5:
+Review
+
+Step 6:
+Confirmation
+
+After booking:
+
+Show:
+
+Booking submitted successfully.
+
+Provider:
+ABC Plumbing
+
+Service:
+Leak Repair
+
+Date:
+30 September 2026
+
+Status:
+Pending
+
+Add a View Booking button.
+
+Use validation and clear error messages.
+
+Do not allow submission when required fields are invalid.
+\end{quote}
+
+\subsection*{PHASE 12 --- Customer Dashboard Prompt}
+
+\begin{quote}
+Build the customer dashboard.
+
+Sections:
+
+- overview
+- upcoming booking
+- active requests
+- booking history
+- saved providers
+- profile
+
+Show useful cards:
+
+Upcoming Booking
+Pending Requests
+Completed Services
+
+Create a responsive sidebar/navigation.
+
+Add loading, empty, and error states.
+
+Ensure customers only receive their own data.
+\end{quote}
+
+\subsection*{PHASE 13 --- Provider Dashboard Prompt}
+
+\begin{quote}
+Build the provider dashboard.
+
+Show:
+
+- today's bookings
+- pending requests
+- completed jobs
+- total clients
+- upcoming schedule
+
+Sections:
+
+- Overview
+- Booking Requests
+- Upcoming Bookings
+- Clients
+- Services
+- Availability
+- Business Profile
+- Reviews
+- Settings
+
+Provider booking actions:
+
+Accept
+Reject
+Start Job
+Complete Job
+
+Validate status transitions.
+
+Do not allow providers to manipulate bookings belonging to other providers.
+
+Make the dashboard visually polished and responsive.
+\end{quote}
+
+\subsection*{PHASE 14 --- Admin Dashboard Prompt}
+
+\begin{quote}
+Build the ServiceConnect admin dashboard.
+
+Admin dashboard should include:
+
+- total customers
+- total providers
+- pending providers
+- total bookings
+- active bookings
+
+Create provider verification screen.
+
+Each pending provider should display:
+
+- business name
+- provider name
+- category
+- location
+- contact
+- description
+- submitted images
+- services
+- submitted date
+- status
+
+Actions:
+
+Approve
+Reject
+Suspend
+View Details
+
+Reject action should request a reason.
+
+Create activity log page.
+
+Admin UI should be clearly separated from customer/provider interfaces.
+
+SECURITY:
+Do not rely on frontend route hiding.
+
+Every admin API must verify:
+1. authentication
+2. ADMIN role
+\end{quote}
+
+\subsection*{PHASE 15 --- Image Upload Prompt}
+
+\begin{quote}
+Implement secure provider image uploads.
+
+Providers can upload:
+
+- profile image
+- cover image
+- business/gallery images
+
+Security requirements:
+
+- validate MIME type
+- validate extension
+- limit file size
+- generate safe filenames
+- do not trust original filename
+- prevent executable uploads
+- store files outside sensitive source directories
+- return safe URLs
+- handle upload failures
+- restrict who can upload
+- restrict who can delete images
+
+Document upload security in docs/SECURITY.md.
+
+Add tests for invalid file types and oversized uploads.
+\end{quote}
+
+\subsection*{PHASE 16 --- Reviews Prompt}
+
+\begin{quote}
+Implement reviews.
+
+Only customers with a COMPLETED booking should be allowed to review
+the corresponding provider/service.
+
+Review fields:
+
+rating 1-5
+comment
+
+Prevent:
+
+- duplicate reviews for the same booking
+- reviews without completed booking
+- users reviewing unrelated providers
+- providers reviewing themselves
+- unauthenticated reviews
+
+Show provider rating and review count.
+
+Validate review input.
+\end{quote}
+
+\subsection*{PHASE 17 --- UI Polish Prompt}
+
+\begin{quote}
+Now perform a complete UI/UX refinement pass.
+
+Do not add major backend features.
+
+Inspect the entire application.
+
+Improve:
+
+- spacing
+- typography
+- buttons
+- cards
+- navigation
+- forms
+- responsive layouts
+- loading states
+- empty states
+- error states
+- toast messages
+- status badges
+- icons
+- accessibility
+- visual consistency
+
+Make ServiceConnect look like a real commercial local-services platform.
+
+Avoid:
+- excessive gradients
+- excessive animations
+- clutter
+- inconsistent colors
+- inconsistent border radius
+- generic default styles
+
+Check every page on desktop and mobile.
+
+Fix obvious visual bugs.
+\end{quote}
+
+\subsection*{PHASE 18 --- Security Audit Prompt}
+
+\begin{quote}
+Act as a security engineer.
+
+Do a security review of the entire ServiceConnect codebase.
+
+Do not simply tell me that it is secure.
+
+Inspect the actual implementation.
+
+Check for:
+
+1. Authentication weaknesses
+2. Authorization weaknesses
+3. IDOR
+4. Broken role checks
+5. SQL injection
+6. XSS
+7. CSRF where relevant
+8. Unsafe file uploads
+9. Weak password handling
+10. Sensitive data exposure
+11. Hard-coded secrets
+12. Excessive CORS
+13. Missing rate limiting
+14. Insecure error messages
+15. Missing input validation
+16. Booking manipulation
+17. Provider/customer data leakage
+18. Admin endpoint exposure
+19. Insecure direct object access
+20. Dependency vulnerabilities
+21. Insecure environment configuration
+22. Missing ownership checks
+
+For each finding provide:
+
+- Finding
+- Location/file
+- Severity
+- Explanation
+- Exploit scenario
+- Recommended fix
+
+Do not modify code yet.
+
+Save the review to:
+
+docs/SECURITY_REVIEW.md
+\end{quote}
+
+\subsection*{PHASE 19 --- Security Fix Prompt}
+
+\begin{quote}
+Using docs/SECURITY_REVIEW.md, fix the identified security vulnerabilities.
+
+Prioritize:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+For every fix:
+
+1. Explain the vulnerability.
+2. Explain the fix.
+3. Modify the minimum required code.
+4. Add a regression test where possible.
+5. Run tests.
+6. Verify the vulnerability is no longer reproducible.
+
+Do not introduce unrelated changes.
+
+Update docs/SECURITY.md.
+
+Record the changes in docs/AI_DECISION_LOG.md.
+\end{quote}
+
+\subsection*{PHASE 20 --- Testing Prompt}
+
+\begin{quote}
+Create a complete testing pass.
+
+Test:
+
+Authentication
+Authorization
+Customer flows
+Provider flows
+Admin flows
+Provider verification
+Service CRUD
+Search
+Filters
+Bookings
+Booking state transitions
+Reviews
+Image uploads
+API validation
+
+Include negative tests.
+
+Important negative tests:
+
+- unauthenticated request
+- customer accessing provider endpoint
+- provider accessing admin endpoint
+- provider modifying another provider
+- customer accessing another customer's booking
+- provider accessing another provider's booking
+- changing verification status as non-admin
+- invalid booking status transition
+- invalid file upload
+- malformed input
+- invalid price
+- invalid date
+
+Fix failing tests.
+
+Provide final test command documentation in README.md.
+\end{quote}
+
+\subsection*{PHASE 21 --- Deployment Prompt}
+
+\begin{quote}
+Prepare ServiceConnect for deployment.
+
+Create/update:
+
+README.md
+docs/DEPLOYMENT.md
+.env.example
+
+Document:
+
+Frontend build command
+Backend build command
+Backend start command
+Database migration
+Database seed
+Required environment variables
+CORS configuration
+Production API URL
+Frontend API URL
+File storage requirements
+
+Verify:
+
+- no secrets in Git
+- .env is ignored
+- production configuration is separated
+- debug logging is disabled where appropriate
+- CORS is configured
+- database connection uses environment variables
+
+If Docker is used, create/update:
+
+Dockerfile
+docker-compose.yml
+
+Do not deploy yet unless explicitly requested.
+\end{quote}
+
+\subsection*{PHASE 22 --- Final Code Review Prompt}
+
+\begin{quote}
+Perform a final engineering review of ServiceConnect.
+
+Review:
+
+Architecture
+Code organization
+Frontend quality
+Backend quality
+Database design
+Security
+Authentication
+Authorization
+Validation
+API consistency
+Error handling
+Testing
+Responsive design
+Accessibility
+Deployment readiness
+Documentation
+
+Identify:
+
+- technical debt
+- duplicated code
+- unused files
+- dead code
+- insecure patterns
+- missing tests
+- poor naming
+- performance issues
+
+Fix only issues that are appropriate for this project.
+
+Do not rewrite the entire application unnecessarily.
+
+At the end produce:
+
+FINAL_REVIEW.md
+
+with:
+
+1. Completed features
+2. Remaining limitations
+3. Security controls
+4. Tests
+5. Deployment readiness
+6. Known limitations
+7. Future improvements
+\end{quote}
+
+\subsection*{Phase 23 --- AI Build Log Finalization Prompt}
+
+\begin{quote}
+Now help me prepare the AIEngineering assignment documentation.
+
+Review the Git history, docs, and project changes.
+
+Create/update:
+
+docs/BUILD_LOG.md
+
+For each major development phase record:
+
+- Date
+- Objective
+- Prompt used
+- AI-generated solution
+- What was accepted
+- What was rejected
+- What was modified manually
+- Why the decision was made
+- Files changed
+- Tests performed
+- Result
+
+Create:
+
+docs/AI_DECISION_LOG.md
+
+Include important architectural and UI decisions.
+
+Do not invent decisions that were not actually made.
+
+If Git history does not provide enough information, clearly mark
+the item as "Not recorded" rather than fabricating details.
+\end{quote}
+
+\subsection*{Phase 24 --- Peer Audit Readiness Prompt}
+
+\begin{quote}
+Prepare ServiceConnect for another student group to audit.
+
+Create:
+
+docs/PEER_AUDIT_GUIDE.md
+
+Include:
+
+1. Application overview
+2. Technology stack
+3. How to run locally
+4. Test accounts
+5. Role descriptions
+6. Important endpoints
+7. Security controls
+8. Known limitations
+9. Areas suitable for security testing
+10. Deployment configuration
+
+Do not reveal secrets.
+
+Use only development/demo credentials.
+
+Also create:
+
+docs/AUDIT_RESPONSE_TEMPLATE.md
+
+with sections:
+
+Finding
+Severity
+Validity
+Affected Component
+Root Cause
+Fix
+Testing
+Status
+\end{quote}
+
+\subsection*{Prompt for Fixing Any Cursor Error}
+
+\begin{quote}
+Do not rewrite the whole project.
+
+First inspect the error and trace it to the root cause.
+
+Explain:
+1. What caused the error.
+2. Which file is responsible.
+3. Why the current implementation fails.
+4. The smallest safe fix.
+
+Then implement the fix.
+
+After fixing:
+- run the relevant test/build
+- verify the original functionality
+- check that the fix did not break unrelated features
+
+Do not change unrelated code.
+\end{quote}
+
+\subsection*{Prompt for UI Problems}
+
+\begin{quote}
+Inspect the current UI implementation and fix the following issue:
+
+[DESCRIBE ISSUE]
+
+Do not redesign the entire website.
+
+Keep the existing ServiceConnect design system.
+
+Fix:
+- responsiveness
+- spacing
+- alignment
+- typography
+- component sizing
+- overflow
+- accessibility
+
+Verify desktop and mobile layouts.
+
+Explain what changed and why.
+\end{quote}
+
+\subsection*{Prompt for AI Hallucinated/Bad Code}
+
+\begin{quote}
+Review your previous implementation critically.
+
+Do not assume the previous code is correct.
+
+Check the actual repository files.
+
+If your previous implementation conflicts with the project requirements,
+identify the conflict.
+
+Do not defend the previous implementation.
+
+Correct it using the project specification.
+
+Before changing code:
+- identify the problem
+- explain the correct behavior
+- implement the smallest appropriate fix
+- test it
+\end{quote}
+
+\subsection*{Correction 1 --- Indian/Goa localization and INR price conversion}
+
+\begin{quote}
+Update ServiceConnect for the intended Indian/Goa context.
+Requirements:
+- use INR / ₹ instead of USD
+- use Indian number/date formatting
+- replace US-style demo locations with Goa/India data
+- preserve the existing architecture
+- preserve authentication and authorization
+- preserve provider verification
+- preserve customer/provider/admin roles
+- ensure provider registration works
+- ensure role-based routing works
+- ensure only approved providers are public
+- update relevant tests
+- run server/client tests
+- run typechecks
+- run production build
+Do not make unrelated changes.
+\end{quote}
+
+\subsection*{Correction 2 --- Provider dashboard crash}
+
+\begin{quote}
+Inspect the provider dashboard crash and trace it to the actual API
+response.
+Do not rewrite the dashboard.
+Correct the frontend/API contract mismatch.
+Use the actual response shape.
+Update the relevant type/API code and add or update regression tests.
+Run:
+- server tests
+- client tests
+- typechecks
+- production build
+Do not change unrelated functionality.
+\end{quote}
+
+\subsection*{Correction 3 --- Provider business page service-shape crash}
+
+\begin{quote}
+Inspect the actual owner-service API response.
+Correct the ProviderService type and provider business page to use the
+real flat response.
+Do not alter the public service API unnecessarily.
+Add regression tests for the provider business page.
+Run:
+- server tests
+- client tests
+- typechecks
+- production build
+Do not change unrelated code.
+\end{quote}
+
+\subsection*{Correction 4 --- Custom service categories}
+
+\begin{quote}
+Allow providers to create a custom service category while preserving the
+existing predefined categories.
+A service may specify exactly one of:
+- categoryId
+- categoryName
+Normalize category names by:
+- trimming
+- collapsing repeated whitespace
+- normalizing the slug
+Examples:
+CCTV Installation
+cctv installation
+CCTV Installation
+must resolve to the same category:
+cctv-installation
+If a matching category already exists, reuse it.
+If it does not exist, create it.
+Handle concurrent category creation safely:
+- attempt insertion
+- handle unique constraint race
+- re-read the existing category
+Custom categories should receive a high sort order so predefined
+categories remain first.
+Frontend:
+- use a searchable/free-text combobox
+- selecting an existing category pins its ID
+- typing a custom category clears the selected ID
+- show filtered suggestions
+Add tests for:
+- normalization
+- duplicate categories
+- concurrent creation
+- existing category reuse
+- custom category creation
+Run the full test/typecheck/build suite.
+\end{quote}
+
+\subsection*{Correction 5 --- Secure provider business image uploads}
+
+\begin{quote}
+Implement secure provider business image uploads.
+Providers should be able to:
+- upload business/gallery images
+- view their uploaded images
+- delete their own images
+Endpoints:
+GET /api/providers/me/images
+POST /api/providers/me/images
+DELETE /api/providers/me/images/:id
+Security:
+- provider authentication required
+- provider ownership enforced
+- MIME type validation
+- extension validation
+- file size limit
+- safe UUID filenames
+- no executable uploads
+- upload failures handled safely
+- safe public URLs
+Use:
+server/uploads/providers
+Serve through:
+/uploads/providers
+Ignore uploaded files in Git.
+Add backend and frontend tests.
+Run:
+- server tests
+- client tests
+- typechecks
+- production build
+Do not change unrelated features.
+\end{quote}
+
+\subsection*{Correction 6 --- Business images, admin review, service images, dummy-service cleanup}
+
+\begin{quote}
+Expand the existing image functionality.
+1. Customer business images
+Customers must be able to see approved provider business/gallery images
+on the public provider profile.
+
+2. Admin review images
+When an admin reviews a provider, the admin must see the provider's
+business images.
+Admin image access is read-only.
+Do not add admin image mutation endpoints.
+
+3. Service-specific images
+Providers must be able to upload images for individual services.
+Add a service_images table with:
+- id
+- service_id
+- url
+- alt_text
+- sort_order
+- created_at
+Use:
+- foreign key to services
+- cascade delete
+- URL validation
+- unique service/image URL
+- useful indexing
+Endpoints:
+GET /api/providers/me/services/:id/images
+POST /api/providers/me/services/:id/images
+DELETE /api/providers/me/services/:id/images/:imageId
+Only the owning provider may manage the images.
+
+4. Provider UI
+Add:
+- business image management
+- service image management
+For a newly created service without an ID, do not attempt to upload
+service images until the service has been created.
+
+5. Customer UI
+Display service-specific images on the service listing/profile.
+If a service has no images, omit the image section.
+
+6. Dummy/default services
+Remove the unwanted seeded/demo services that were not approved.
+Preserve real user-created services.
+Remove associated dummy data only where required by the database
+relationships.
+Do not recreate the removed dummy services when seed is run again.
+
+7. Testing
+Add tests for:
+- business image access
+- business image deletion
+- service image upload
+- service image deletion
+- ownership
+- admin read-only review
+- customer visibility
+- invalid files
+- missing images
+IMPORTANT:
+Do not modify:
+server/src/tests/search.test.ts
+Do not change the application search implementation merely to make the
+search test pass.
+Run:
+- complete server test suite
+- complete client test suite
+- server typecheck
+- client typecheck
+- root typecheck
+- production build
+After implementation, manually verify these flows in the browser:
+A. Provider uploads a business image.
+ Customer can see it on the public provider page.
+B. Provider uploads a service image.
+ Customer can see it on the corresponding service.
+C. Admin opens provider review details.
+ Business images are visible.
+D. Provider deletes a service image.
+ Customer no longer sees it.
+E. Provider deletes a business image.
+ Customer no longer sees it.
+\end{quote}
+
+\subsection*{Correction 7 --- Final image-work test-fixture correction}
+
+\begin{quote}
+Manual browser testing of the image features passed.
+
+Do not modify server/src/tests/search.test.ts.
+
+Fix ONLY the newly exposed keyword-search test failure by correcting its test fixture/setup so that it selects an APPROVED/public provider or otherwise uses an appropriate public-search fixture.
+
+Do NOT change the application search implementation to make the test pass.
+
+Leave the pre-existing price-sort failure unchanged.
+
+Then run the complete server test suite, client test suite, both typechecks, and client production build.
+
+Do not commit or push.
+\end{quote}
+
+% End of Cline prompt appendix.
